@@ -19,3 +19,6 @@ yarn-error.log
 /.idea
 /.vscode
 /.zed
+rr
+.rr.yaml
+/storage/clockwork
