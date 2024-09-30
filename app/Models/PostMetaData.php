@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class PostMetaData extends Model
 {
@@ -20,6 +22,18 @@ class PostMetaData extends Model
         "scheduled_at",
         "expires_at"
     ];
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            // Log::debug($model);
+            if (empty($model->user_id)) {
+                $model->user_id = Auth::id();
+            }
+        });
+    }
 
     public function author()
     {
