@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\PostController;
+use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Auth\AuthUserProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -35,4 +36,10 @@ Route::prefix("v1")->group(function () {
      * @private Only admin can access
      */
     Route::apiResource('posts', PostController::class);
+
+    /**
+     * @desc Search
+     * @public
+     */
+    Route::post("/search", [SearchController::class, "search"]); // ->where('keyword', '[A-Za-z0-9\_\@]+')
 });

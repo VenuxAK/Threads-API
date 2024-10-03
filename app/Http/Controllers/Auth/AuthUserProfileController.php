@@ -131,7 +131,9 @@ class AuthUserProfileController extends Controller
     // Filter hash tags
     private function filterHashTags($content)
     {
-        preg_match_all('/#\w+\b/', $content, $matches);
-        return array_values(array_unique($matches[0]));
+        // preg_match_all('/#\w+\b/', $content, $matches);
+        // return array_values(array_unique($matches[1]));
+        preg_match_all('/#(\w+)\b/', $content, $matches);
+        return array_values(array_unique($matches[1]));
     }
 }

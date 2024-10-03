@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Post;
+use App\Models\PostMetaData;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -18,26 +19,17 @@ class DatabaseSeeder extends Seeder
         /**
          * Run First
          */
-        // User::factory()->create([
-        //     'name' => 'User One',
-        //     'username' => 'user_one',
-        //     'email' => 'userone@example.com',
-        // ]);
-        // User::factory()->create([
-        //     'name' => 'User Two',
-        //     'username' => 'user_two',
-        //     'email' => 'usertwo@example.com',
-        // ]);
-        // User::factory()->create([
-        //     'name' => 'User Three',
-        //     'username' => 'user_three',
-        //     'email' => 'userthree@example.com',
-        // ]);
+
+        // Please make sure that you truncate posts collection of MongoDB
         // Post::truncate();
 
-        /**
-         * Run after the first one done
-         */
-        // Post::factory(50)->create();
+        $this->call([
+            // UserSeeder::class,      // Run First
+
+            // Please make sure that you comment Post's boot method
+            // PostSeeder::class,      // Run Second ***
+
+            // PostMetaDataSeeder::class,   // Run after PostSeeder done
+        ]);
     }
 }

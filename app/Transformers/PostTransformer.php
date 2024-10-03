@@ -23,6 +23,7 @@ class PostTransformer
             return [
                 'id' => $post->id,
                 'content' => $post->content,
+                'tags' => $post?->tags,
                 'published_at' => $post->created_at->diffForHumans(),
                 'edited_at' => $post->updated_at->diffForHumans(),
                 'author' => [

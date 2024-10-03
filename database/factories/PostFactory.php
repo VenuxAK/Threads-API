@@ -16,10 +16,22 @@ class PostFactory extends Factory
      */
     public function definition(): array
     {
-        $userId = fake()->numberBetween(1, 3);
+        $customTags = ['laravel', 'vue', 'mongodb', 'aws', 'nuxt', 'cybersecurity', 'php', 'devops', 'backend', 'cloud computing', 'mysql'];
+        $tags = fake()->randomElements($customTags, rand(2, 5));
+
+        $content = fake()->paragraph();
+
+        foreach ($tags as $tag) {
+            $words = explode(" ", $content);
+            $randomPosition = rand(0, count($words) - 1);
+            array_splice($words, $randomPosition, 0, "#$tag");
+            $content = implode(' ', $words);
+        }
+
         return [
-            "content" => fake()->paragraph(),
-            "user_id" => $userId
+            "content" => $content,
+            "tags" => $tags,
+            "user_id" => fake()->numberBetween(1, 10)
         ];
     }
 }
