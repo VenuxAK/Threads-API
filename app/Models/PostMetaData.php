@@ -14,8 +14,8 @@ class PostMetaData extends Model
     protected $fillable = [
         "post_id",
         "user_id",
-        "like_count",
-        "comment_count",
+        "likes_count",
+        "comments_count",
         "shares_count",
         "visibility",
         "status",

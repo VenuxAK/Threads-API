@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\CommentController;
+use App\Http\Controllers\Api\LikeController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\SearchController;
@@ -29,6 +31,13 @@ Route::prefix("v1")->group(function () {
          *  -   To get user's single post, then fetch /api/v1/users/{username}?post={post_id}
          */
         Route::get("/{username}", [UserProfileController::class, "show"]);
+
+        // // Comments
+        // Route::get('/posts/{id}/comments', [CommentController::class, "show"]);
+        // Route::post('/posts/{id}/comments', [CommentController::class, "store"]);
+
+        // // Likes
+        // Route::post('/posts/{id}/likes', [LikeController::class, "store"]);
     });
 
     /**
@@ -36,6 +45,13 @@ Route::prefix("v1")->group(function () {
      * @private Only admin can access
      */
     Route::apiResource('posts', PostController::class);
+
+    // // Comments
+    // Route::get('/posts/{id}/comments', [CommentController::class, "show"]);
+    // Route::post('/posts/{id}/comments', [CommentController::class, "store"]);
+
+    // // Likes
+    // Route::post('/posts/{id}/likes', [LikeController::class, "store"]);
 
     /**
      * @desc Search

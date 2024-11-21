@@ -66,8 +66,17 @@ class UserProfileController extends Controller
 
             // Response user's post
             return $this->response([
-                "post" => $this->postTransformer->transformPosts(collect([$post]))->first()
+                // "post" => $this->postTransformer->transformPosts(collect([$post]))->first()
+                "post" => $this->postTransformer->transformPost($post)
             ]);
+
+            /**
+             * post: {
+             *  id,content,published_at, edited_at,
+             *  author: {name,username,avatar},
+             *  comments: [{content,created_at, name, username}]
+             * }
+             */
         }
 
         // Response user infomation

@@ -70,9 +70,9 @@ class PostController extends Controller // implements Illuminate\Routing\Control
             ], 404);
         }
 
-        $post = $this->postTransformer->transformPosts(collect([$post]))->first();
+
         return response()->json([
-            "post" => $post
+            "post" => $this->postTransformer->transformPost($post)
         ]);
     }
 
