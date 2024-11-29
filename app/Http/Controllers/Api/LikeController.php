@@ -14,7 +14,7 @@ class LikeController extends Controller
 {
     use Http;
 
-    public function store(Request $request, $post_id)
+    public function store(Request $request, $username, $post_id)
     {
         // Find post
         $post = Post::find($post_id);

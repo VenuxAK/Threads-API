@@ -32,6 +32,23 @@ Route::prefix("v1")->group(function () {
          */
         Route::get("/{username}", [UserProfileController::class, "show"]);
 
+        // CRUD post API
+        Route::get("/{username}/posts", [UserProfileController::class, "showAllPosts"]);
+        Route::get("/{username}/posts/{id}", [UserProfileController::class, "showPost"]);
+        Route::post("/{username}/posts", [UserProfileController::class, "storePost"]);
+        Route::put("/{username}/posts/{id}", [UserProfileController::class, "updatePost"]);
+        Route::patch("/{username}/posts/{id}", [UserProfileController::class, "updatePost"]);
+        Route::delete("/{username}/posts/{id}", [UserProfileController::class, "destroyPost"]);
+
+
+        // Comments
+        Route::get("/{username}/posts/{id}/comments", [CommentController::class, "show"]);
+        Route::post("/{username}/posts/{id}/comments", [CommentController::class, "store"]);
+
+        // Likes
+        // Route::get('/{username}/posts/{id}/likes', [LikeController::class, "show"]);
+        Route::post('/{username}/posts/{id}/likes', [LikeController::class, "store"]);
+
         // // Comments
         // Route::get('/posts/{id}/comments', [CommentController::class, "show"]);
         // Route::post('/posts/{id}/comments', [CommentController::class, "store"]);

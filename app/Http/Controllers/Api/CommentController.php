@@ -14,7 +14,7 @@ class CommentController extends Controller
 {
     use Http;
 
-    public function show(Request $request, $post_id)
+    public function show(Request $request, $username, $post_id)
     {
         // Find post
         $post = Post::find($post_id);
@@ -49,10 +49,10 @@ class CommentController extends Controller
     }
 
     //
-    public function store(Request $request, $post_id)
+    public function store(Request $request, $username, $id)
     {
         // Find post
-        $post = Post::find($post_id);
+        $post = Post::find($id);
         if (!$post) {
             return $this->failed([
                 "message" => "Post not found"
@@ -67,11 +67,11 @@ class CommentController extends Controller
         // Create comment
         Comment::create([
             "user_id" => Auth::user()->id,
-            "post_id" => $post_id,
+            "post_id" => $id,
             "content" => $request->content
         ]);
 
-        $post_metadata = PostMetaData::where('post_id', $post_id)->first();
+        $post_metadata = PostMetaData::where('post_id', $id)->first();
         $post_metadata->update([
             "comments_count" => $post_metadata->comments_count + 1,
         ]);
