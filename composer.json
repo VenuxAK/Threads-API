@@ -5,10 +5,8 @@
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
-        "php": "^8.2",
-        "itsgoingd/clockwork": "^5.2",
-        "laravel/breeze": "^2.2",
-        "laravel/framework": "^11.9",
+        "php": "^8.3",
+        "laravel/framework": "^12.0",
         "laravel/octane": "^2.5",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
@@ -17,12 +15,14 @@
         "spiral/roadrunner-http": "^3.3.0"
     },
     "require-dev": {
+        "itsgoingd/clockwork": "^5.2",
+        "laravel/breeze": "^2.2",
         "fakerphp/faker": "^1.23",
         "laravel/pint": "^1.13",
         "laravel/sail": "^1.26",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.0",
-        "phpunit/phpunit": "^11.0.1"
+        "phpunit/phpunit": "^11.0"
     },
     "autoload": {
         "psr-4": {
