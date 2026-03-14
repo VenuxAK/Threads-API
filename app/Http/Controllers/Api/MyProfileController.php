@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\PostRequest;
 use App\Models\Post;
 use App\Models\PostMetaData;
 use App\Transformers\PostTransformer;
@@ -10,6 +11,7 @@ use App\Utils\HashtagTrait;
 use App\Utils\Http;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class MyProfileController extends Controller
 {
@@ -29,7 +31,7 @@ class MyProfileController extends Controller
      */
     public function me(Request $request)
     {
-        return $this->response([
+        return $this->success([
             "id" => Auth::user()->id,
             "name" => Auth::user()->name,
             "username" => Auth::user()->username,
@@ -45,12 +47,24 @@ class MyProfileController extends Controller
      * @route   /api/v1/user/posts
      * @method  GET
      */
-    public function index()
+    public function index(Request $request)
     {
-        $posts = Post::where('user_id', Auth::id())->latest()->get();
+        // Get pagination parameters
+        $perPage = min($request->get('per_page', 15), 50); // Max 50 per page
+        $page = max($request->get('page', 1), 1);
 
-        return $this->response([
-            "posts" => $this->postTransformer->transformPosts($posts)
+        $posts = Post::where('user_id', Auth::id())->latest()->paginate($perPage, ['*'], 'page', $page);
+
+        return $this->success([
+            "posts" => $this->postTransformer->transformPosts($posts),
+            "pagination" => [
+                "total" => $posts->total(),
+                "per_page" => $posts->perPage(),
+                "current_page" => $posts->currentPage(),
+                "last_page" => $posts->lastPage(),
+                "from" => $posts->firstItem(),
+                "to" => $posts->lastItem(),
+            ]
         ]);
     }
 
@@ -63,10 +77,11 @@ class MyProfileController extends Controller
     {
         $post = Post::where('user_id', Auth::id())->where('id', $id)->first();
 
-        if (!$post) return $this->failed("Post not found", 404);
+        if (!$post) return $this->error("Post not found", 404);
 
-        return $this->response([
-            "post" => $this->postTransformer->transformPosts(collect([$post]))->first(),
+        $transformedPost = $this->postTransformer->transformPost($post);
+        return $this->success([
+            "post" => $transformedPost,
         ]);
     }
 
@@ -75,21 +90,27 @@ class MyProfileController extends Controller
      * @route   /api/v1/user/posts/{post_id}
      * @method  POST
      */
-    public function  store(Request $request)
+    public function store(PostRequest $request)
     {
-        $request->validate([
-            "content" => ["required"]
-        ]);
-
         $content = $request->content;
         $contentTags = $this->filterHashTags($content);
 
-        Post::create([
-            "content" => $content,
-            "tags" => $contentTags
-        ]);
+        try {
+            Post::create([
+                "content" => $content,
+                "tags" => $contentTags
+            ]);
 
-        return $this->responseStatus(204);
+            return $this->responseStatus(204);
+        } catch (\Exception $e) {
+            Log::error('Failed to create post in MyProfileController', [
+                'error' => $e->getMessage(),
+                'user_id' => Auth::id(),
+                'content_length' => strlen($content)
+            ]);
+
+            return $this->error('Failed to create post. Please try again.', 500);
+        }
     }
 
     /**
@@ -97,17 +118,13 @@ class MyProfileController extends Controller
      * @route   /api/v1/user/posts/{post_id}
      * @method  PUT | PATCH
      */
-    public function update(Request $request, String $id)
+    public function update(PostRequest $request, String $id)
     {
         $post = Post::where("user_id", Auth::id())->whereId($id)->first();
 
-        if (!$post) return $this->failed("Post not found", 404);
+        if (!$post) return $this->error("Post not found", 404);
 
-        $request->validate([
-            "content" => ["required"]
-        ]);
-
-        $post = $post->update([
+        $post->update([
             "content" => $request->content ?? $post->content
         ]);
 
@@ -123,10 +140,19 @@ class MyProfileController extends Controller
     {
         $post = Post::where("user_id", Auth::id())->whereId($id)->first();
 
-        if (!$post) return $this->failed("Post not found", 404);
+        if (!$post) return $this->error("Post not found", 404);
 
-        $post->delete();
+        try {
+            $post->delete();
+            return $this->responseStatus(204);
+        } catch (\Exception $e) {
+            Log::error('Failed to delete post in MyProfileController', [
+                'error' => $e->getMessage(),
+                'post_id' => $id,
+                'user_id' => Auth::id()
+            ]);
 
-        return $this->responseStatus(204);
+            return $this->error('Failed to delete post. Please try again.', 500);
+        }
     }
 }

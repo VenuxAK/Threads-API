@@ -36,15 +36,19 @@ class OtherUserProfileController extends Controller
     {
         $user = User::where("username", $username)->first();
 
-        if (!$user) return $this->failed("User not found", 404);
+        if (!$user) return $this->error("User not found", 404);
 
         // Get user and user's posts
         // /api/v1/user/{username}?posts=include
         if ($request->query('posts') === "include") {
-            $posts = Post::where("user_id", $user->id)->latest()->get();
+            // Get pagination parameters
+            $perPage = min($request->get('per_page', 15), 50); // Max 50 per page
+            $page = max($request->get('page', 1), 1);
+
+            $posts = Post::where("user_id", $user->id)->latest()->paginate($perPage, ['*'], 'page', $page);
 
             // Response user and user's posts
-            return $this->response([
+            return $this->success([
                 "user" => [
                     "id" => $user->id,
                     "name" => $user->name,
@@ -52,26 +56,34 @@ class OtherUserProfileController extends Controller
                     "avatar" => $user->avatar,
                     "bio" => $user->bio,
                 ],
-                "posts" => $this->postTransformer->transformPosts($posts)
+                "posts" => $this->postTransformer->transformPosts($posts),
+                "pagination" => [
+                    "total" => $posts->total(),
+                    "per_page" => $posts->perPage(),
+                    "current_page" => $posts->currentPage(),
+                    "last_page" => $posts->lastPage(),
+                    "from" => $posts->firstItem(),
+                    "to" => $posts->lastItem(),
+                ]
             ]);
         }
 
         // Get user's post by id from query param
         // /api/v1/users/{username}?post={post_id}
         if ($request->query('post')) {
-
             $post = Post::where('user_id', $user->id)->whereId($request->query('post'))->first();
 
-            if (!$post) return $this->failed("Post not found", 404);
+            if (!$post) return $this->error("Post not found", 404);
 
             // Response user's post
-            return $this->response([
-                "post" => $this->postTransformer->transformPosts(collect([$post]))->first()
+            $transformedPost = $this->postTransformer->transformPost($post);
+            return $this->success([
+                "post" => $transformedPost
             ]);
         }
 
         // Response user infomation
-        return $this->response([
+        return $this->success([
             "user" => [
                 "id" => $user->id,
                 "name" => $user->name,

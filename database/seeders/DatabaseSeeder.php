@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Post;
-use App\Models\PostMetaData;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -15,21 +14,27 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-
-        /**
-         * Run First
-         */
-
-        // Please make sure that you truncate posts collection of MongoDB
         // Post::truncate();
-
+        // Create test users first
         $this->call([
-            // UserSeeder::class,      // Run First
-
-            // Please make sure that you comment Post's boot method
-            // PostSeeder::class,      // Run Second ***
-
-            // PostMetaDataSeeder::class,   // Run after PostSeeder done
+            UserSeeder::class,
         ]);
+
+        // Create posts with realistic data
+        // Note: Make sure MongoDB posts collection is empty or truncate it first
+        // Also, temporarily disable Post model events in PostSeeder
+        $this->call([
+            PostSeeder::class,
+        ]);
+
+        // PostMetaData is created within PostSeeder
+        // No need for separate PostMetaDataSeeder
+
+        $this->command->info('Database seeded successfully!');
+        $this->command->info('Test users created with credentials:');
+        $this->command->info('  - Email: test@example.com, Password: password');
+        $this->command->info('  - Email: user@example.com, Password: password');
+        $this->command->info('Search functionality now works with meaningful data:');
+        $this->command->info('  Try searching for: tech, hiking, laravel, programming, travel');
     }
 }

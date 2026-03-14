@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\MyProfileController;
 use App\Http\Controllers\Api\OtherUserProfileController;
 use App\Http\Controllers\Api\PostController;
+use App\Http\Controllers\Api\PostInteractionController;
 use App\Http\Controllers\Api\SearchController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -49,13 +50,23 @@ Route::prefix("v1")->middleware('auth:sanctum')->group(function () {
     Route::get('/posts/{post}', [PostController::class, "show"]);
 
     /**
+     * @desc Post interactions (likes, shares)
+     */
+    Route::prefix('posts/{post}')->group(function () {
+        Route::post('/like', [PostInteractionController::class, 'like']);
+        Route::delete('/like', [PostInteractionController::class, 'unlike']);
+        Route::post('/share', [PostInteractionController::class, 'share']);
+        Route::get('/interactions', [PostInteractionController::class, 'interactions']);
+    });
+
+    /**
      * @desc Search
      * @public
      */
     Route::post("/search", [SearchController::class, "search"]); // ->where('keyword', '[A-Za-z0-9\_\@]+')
 });
 
-Route::get("/mongodb-test", function (Request $request) {
+Route::get("/ping-mongodb", function (Request $request) {
     $uri = env('MONGODB_URI');
     // Set the version of the Stable API on the client
     $apiVersion = new ServerApi(ServerApi::V1);

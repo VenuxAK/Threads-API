@@ -5,30 +5,107 @@ namespace App\Utils;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 
+/**
+ * Standardized API Response Trait
+ *
+ * Provides consistent response formats for all API endpoints
+ */
 trait Http
 {
+    /**
+     * Success response
+     *
+     * @param array $data
+     * @param string|null $message
+     * @param int $code
+     * @return JsonResponse
+     */
+    protected function success(array $data, ?string $message = null, int $code = 200): JsonResponse
+    {
+        $response = [
+            'success' => true,
+            'message' => $message,
+            'data' => $data,
+        ];
+
+        // Remove null message
+        if ($message === null) {
+            unset($response['message']);
+        }
+
+        return response()->json($response, $code);
+    }
+
+    /**
+     * Error response
+     *
+     * @param string $message
+     * @param int $code
+     * @param array|null $errors
+     * @return JsonResponse
+     */
+    protected function error(string $message, int $code = 400, ?array $errors = null): JsonResponse
+    {
+        $response = [
+            'success' => false,
+            'message' => $message,
+            'code' => $code,
+        ];
+
+        if ($errors !== null) {
+            $response['errors'] = $errors;
+        }
+
+        return response()->json($response, $code);
+    }
+
+    /**
+     * Alias for success response (backward compatibility)
+     *
+     * @param array $data
+     * @param int $code
+     * @return JsonResponse
+     */
     protected function response(array $data, int $code = 200): JsonResponse
     {
-        return response()->json($data, $code);
+        return $this->success($data, null, $code);
     }
 
+    /**
+     * Alias for error response (backward compatibility)
+     *
+     * @param mixed $error
+     * @param int $code
+     * @return JsonResponse
+     */
     protected function failed($error, int $code = 400): JsonResponse
     {
-        return response()->json([
-            "status" => $this->getHttpStatusText($code),
-            "code" => $code,
-            "error" => $error
-        ], $code);
+        $message = is_string($error) ? $error : 'An error occurred';
+        $errors = is_array($error) ? $error : null;
+
+        return $this->error($message, $code, $errors);
     }
 
-    protected function responseStatus(int $code = 204): JsonResponse | Response
+    /**
+     * No content response
+     *
+     * @param int $code
+     * @return Response
+     */
+    protected function responseStatus(int $code = 204): Response
     {
         return response()->noContent($code);
     }
 
-    private function getHttpStatusText($code): String
+    /**
+     * Get HTTP status text
+     *
+     * @param int $code
+     * @return string
+     */
+    private function getHttpStatusText(int $code): string
     {
-        $statusTexts = array(
+        $statusTexts = [
             100 => 'Continue',
             101 => 'Switching Protocols',
             200 => 'OK',
@@ -44,7 +121,6 @@ trait Http
             303 => 'See Other',
             304 => 'Not Modified',
             305 => 'Use Proxy',
-            306 => 'Switch Proxy',
             307 => 'Temporary Redirect',
             400 => 'Bad Request',
             401 => 'Unauthorized',
@@ -64,14 +140,16 @@ trait Http
             415 => 'Unsupported Media Type',
             416 => 'Range Not Satisfiable',
             417 => 'Expectation Failed',
+            422 => 'Unprocessable Entity',
+            429 => 'Too Many Requests',
             500 => 'Internal Server Error',
             501 => 'Not Implemented',
             502 => 'Bad Gateway',
             503 => 'Service Unavailable',
             504 => 'Gateway Timeout',
-            505 => 'HTTP Version Not Supported'
-        );
+            505 => 'HTTP Version Not Supported',
+        ];
 
-        return isset($statusTexts[$code]) ? $statusTexts[$code] : 'Unknown Error';
+        return $statusTexts[$code] ?? 'Unknown Status';
     }
 }
