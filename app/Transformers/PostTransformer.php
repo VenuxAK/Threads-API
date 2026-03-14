@@ -17,7 +17,7 @@ class PostTransformer
         // Transform the posts to include user information and return
         return $posts->map(function ($post) use ($users) {
             // Associate the user with the post
-            $post->user = $users->get($post->user_id);
+            $user = $users->get($post->user_id);
 
             // Return a simplified post object with author information
             return [
@@ -26,12 +26,12 @@ class PostTransformer
                 'tags' => $post?->tags,
                 'published_at' => $post->created_at->diffForHumans(),
                 'edited_at' => $post->updated_at->diffForHumans(),
-                'author' => [
-                    'name' => $post->user->name,
-                    'username' => $post->user->username,
-                    'avatar' => $post->user->avatar,
-                    'bio' => $post->user->bio,
-                ]
+                'author' => $user ? [
+                    'name' => $user->name,
+                    'username' => $user->username,
+                    'avatar' => $user->avatar,
+                    'bio' => $user->bio,
+                ] : null
             ];
         });
     }

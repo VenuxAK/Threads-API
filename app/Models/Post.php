@@ -13,7 +13,7 @@ class Post extends Model
 
     protected $connection = "mongodb";
 
-    protected $colletion = "posts";
+    protected $collection = "posts";
 
     protected $fillable = ["content", "tags"];
 
@@ -29,7 +29,10 @@ class Post extends Model
         });
 
         static::created(function ($model) {
-            PostMetaData::create(["post_id" => $model->id]); // "user_id" => Auth::id()
+            PostMetaData::create([
+                "post_id" => $model->id,
+                "user_id" => $model->user_id
+            ]);
         });
 
         static::deleting(function ($model) {

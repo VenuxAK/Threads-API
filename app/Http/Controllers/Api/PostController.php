@@ -7,11 +7,16 @@ use App\Models\Post;
 use App\Models\PostMetaData;
 use App\Models\User;
 use App\Transformers\PostTransformer;
+use App\Utils\HashtagTrait;
+use App\Utils\Http;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class PostController extends Controller // implements Illuminate\Routing\Controllers\HasMiddleware
 {
+    use HashtagTrait;
+    use Http;
+
     private $postTransformer;
     public function __construct(PostTransformer $postTransformer)
     {
@@ -23,12 +28,12 @@ class PostController extends Controller // implements Illuminate\Routing\Control
      */
     public function index()
     {
-        $dummy_posts = Post::latest()->get();
+        $posts = Post::latest()->get();
 
-        $posts = $this->postTransformer->transformPosts($dummy_posts);
+        $transformedPosts = $this->postTransformer->transformPosts($posts);
 
-        return response()->json([
-            "posts" => $posts,
+        return $this->response([
+            "posts" => $transformedPosts,
         ]);
     }
 
@@ -43,19 +48,16 @@ class PostController extends Controller // implements Illuminate\Routing\Control
             "content" => ["required"]
         ]);
 
+        $content = $request->content;
+        $contentTags = $this->filterHashTags($content);
+
         // Store in MongoDB
         $post = Post::create([
-            "content" => $request->content ?? fake()->paragraph(),
-            "user_id" => Auth::id()
+            "content" => $content,
+            "tags" => $contentTags
         ]);
 
-        // Create post metadata in MySQL
-        $postMetaData = PostMetaData::create([
-            "post_id" => $post->id,
-            "user_id" => Auth::id()
-        ]);
-
-        return response()->noContent();
+        return $this->responseStatus(204);
     }
 
     /**
@@ -65,13 +67,11 @@ class PostController extends Controller // implements Illuminate\Routing\Control
     {
         $post = Post::find($id);
         if (!$post) {
-            return response()->json([
-                "status" => "Not Found"
-            ], 404);
+            return $this->responseStatus(404);
         }
 
         $post = $this->postTransformer->transformPosts(collect([$post]))->first();
-        return response()->json([
+        return $this->response([
             "post" => $post
         ]);
     }
@@ -83,17 +83,13 @@ class PostController extends Controller // implements Illuminate\Routing\Control
     {
         $post = Post::find($id);
         if (!$post) {
-            return response()->json([
-                "status" => "Not Found"
-            ], 404);
+            return $this->responseStatus(404);
         }
 
         // Authorize the user
         // Gate::authorize('update', $post);
         if ($request->user()->cannot('update', $post)) {
-            return response()->json([
-                "message" => "You are not authorized to make this request"
-            ], 403);
+            return $this->failed("You are not authorized to make this request", 403);
         }
 
         // Validate content
@@ -106,7 +102,7 @@ class PostController extends Controller // implements Illuminate\Routing\Control
             "content" => $request->content ?? $post->content
         ]);
 
-        return response()->noContent();
+        return $this->responseStatus(204);
     }
 
     /**
@@ -116,21 +112,17 @@ class PostController extends Controller // implements Illuminate\Routing\Control
     {
         $post = Post::find($id);
         if (!$post) {
-            return response()->json([
-                "status" => "Not Found"
-            ], 404);
+            return $this->responseStatus(404);
         }
 
         // Authorize the user
         // Gate::authorize('update', $post);
         if ($request->user()->cannot('delete', $post)) {
-            return response()->json([
-                "message" => "You are not authorized to make this request"
-            ], 403);
+            return $this->failed("You are not authorized to make this request", 403);
         }
 
         $post->delete();
 
-        return response()->noContent();
+        return $this->responseStatus(204);
     }
 }

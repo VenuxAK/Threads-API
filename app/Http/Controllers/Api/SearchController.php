@@ -21,10 +21,14 @@ class SearchController extends Controller
 
     public function search(Request $request)
     {
-
         $query = $request->keyword;
 
-        if (!$query) return NULL;
+        if (!$query) {
+            return $this->response([
+                "users" => [],
+                "posts" => []
+            ]);
+        }
 
         $results = [];
 

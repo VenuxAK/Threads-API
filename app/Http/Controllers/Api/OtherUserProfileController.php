@@ -9,7 +9,7 @@ use App\Transformers\PostTransformer;
 use App\Utils\Http;
 use Illuminate\Http\Request;
 
-class UserProfileController extends Controller
+class OtherUserProfileController extends Controller
 {
     use Http;   // Use custom http trait helper
 
@@ -36,7 +36,7 @@ class UserProfileController extends Controller
     {
         $user = User::where("username", $username)->first();
 
-        if (!$user) return $this->responseStatus(404);
+        if (!$user) return $this->failed("User not found", 404);
 
         // Get user and user's posts
         // /api/v1/user/{username}?posts=include
@@ -62,7 +62,7 @@ class UserProfileController extends Controller
 
             $post = Post::where('user_id', $user->id)->whereId($request->query('post'))->first();
 
-            if (!$post) return $this->responseStatus(404);
+            if (!$post) return $this->failed("Post not found", 404);
 
             // Response user's post
             return $this->response([

@@ -1,18 +1,20 @@
 <?php
 
-namespace App\Http\Controllers\Auth;
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Post;
 use App\Models\PostMetaData;
 use App\Transformers\PostTransformer;
+use App\Utils\HashtagTrait;
 use App\Utils\Http;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-class AuthUserProfileController extends Controller
+class MyProfileController extends Controller
 {
     use Http; // Use custom http trait helper
+    use HashtagTrait; // Use hashtag trait
 
     private $postTransformer;
     public function __construct(PostTransformer $postTransformer)
@@ -25,7 +27,7 @@ class AuthUserProfileController extends Controller
      * @route   /api/v1/user
      * @method  GET
      */
-    public function showUser(Request $request)
+    public function me(Request $request)
     {
         return $this->response([
             "id" => Auth::user()->id,
@@ -43,7 +45,7 @@ class AuthUserProfileController extends Controller
      * @route   /api/v1/user/posts
      * @method  GET
      */
-    public function showPosts()
+    public function index()
     {
         $posts = Post::where('user_id', Auth::id())->latest()->get();
 
@@ -57,11 +59,11 @@ class AuthUserProfileController extends Controller
      * @route   /api/v1/user/posts/{post_id}
      * @method  GET
      */
-    public function showPost(Request $request, String $id)
+    public function show(Request $request, String $id)
     {
         $post = Post::where('user_id', Auth::id())->where('id', $id)->first();
 
-        if (!$post) return $this->responseStatus(404);
+        if (!$post) return $this->failed("Post not found", 404);
 
         return $this->response([
             "post" => $this->postTransformer->transformPosts(collect([$post]))->first(),
@@ -73,7 +75,7 @@ class AuthUserProfileController extends Controller
      * @route   /api/v1/user/posts/{post_id}
      * @method  POST
      */
-    public function  storePost(Request $request)
+    public function  store(Request $request)
     {
         $request->validate([
             "content" => ["required"]
@@ -95,11 +97,11 @@ class AuthUserProfileController extends Controller
      * @route   /api/v1/user/posts/{post_id}
      * @method  PUT | PATCH
      */
-    public function updatePost(Request $request, String $id)
+    public function update(Request $request, String $id)
     {
         $post = Post::where("user_id", Auth::id())->whereId($id)->first();
 
-        if (!$post) return $this->responseStatus(404);
+        if (!$post) return $this->failed("Post not found", 404);
 
         $request->validate([
             "content" => ["required"]
@@ -117,23 +119,14 @@ class AuthUserProfileController extends Controller
      * @route   /api/v1/user/posts/{post_id}
      * @method  DELETE
      */
-    public function deletePost(Request $request, String $id)
+    public function destroy(Request $request, String $id)
     {
         $post = Post::where("user_id", Auth::id())->whereId($id)->first();
 
-        if (!$post) return $this->responseStatus(404);
+        if (!$post) return $this->failed("Post not found", 404);
 
         $post->delete();
 
         return $this->responseStatus(204);
-    }
-
-    // Filter hash tags
-    private function filterHashTags($content)
-    {
-        // preg_match_all('/#\w+\b/', $content, $matches);
-        // return array_values(array_unique($matches[1]));
-        preg_match_all('/#(\w+)\b/', $content, $matches);
-        return array_values(array_unique($matches[1]));
     }
 }

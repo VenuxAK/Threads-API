@@ -89,7 +89,7 @@ return [
             'handler_with' => [
                 'host' => env('PAPERTRAIL_URL'),
                 'port' => env('PAPERTRAIL_PORT'),
-                'connectionString' => 'tls://'.env('PAPERTRAIL_URL').':'.env('PAPERTRAIL_PORT'),
+                'connectionString' => 'tls://' . env('PAPERTRAIL_URL') . ':' . env('PAPERTRAIL_PORT'),
             ],
             'processors' => [PsrLogMessageProcessor::class],
         ],
@@ -127,6 +127,13 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        'waf' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/waf.log'),
+            'level' => env('WAF_LOG_LEVEL', 'warning'),
+            'days' => env('WAF_LOG_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
     ],
 
 ];
