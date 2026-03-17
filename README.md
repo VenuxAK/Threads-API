@@ -236,6 +236,8 @@ php artisan test --filter=WafTest
 - File upload validation
 - Request size limits
 
+> **Detailed WAF Documentation**: See [WAF_README.md](WAF_README.md) for comprehensive configuration and [WAF_IMPLEMENTATION.md](WAF_IMPLEMENTATION.md) for implementation details.
+
 ### **Security Headers**
 - HTTP Strict Transport Security (HSTS)
 - Content Security Policy (CSP)
