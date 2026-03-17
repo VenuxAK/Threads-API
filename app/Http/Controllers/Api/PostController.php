@@ -20,6 +20,7 @@ class PostController extends Controller
     use Http;
 
     private $postTransformer;
+
     public function __construct(PostTransformer $postTransformer)
     {
         $this->postTransformer = $postTransformer;
@@ -40,15 +41,15 @@ class PostController extends Controller
         $transformedPosts = $this->postTransformer->transformPosts($posts);
 
         return $this->success([
-            "posts" => $transformedPosts,
-            "pagination" => [
-                "total" => $posts->total(),
-                "per_page" => $posts->perPage(),
-                "current_page" => $posts->currentPage(),
-                "last_page" => $posts->lastPage(),
-                "from" => $posts->firstItem(),
-                "to" => $posts->lastItem(),
-            ]
+            'posts' => $transformedPosts,
+            'pagination' => [
+                'total' => $posts->total(),
+                'per_page' => $posts->perPage(),
+                'current_page' => $posts->currentPage(),
+                'last_page' => $posts->lastPage(),
+                'from' => $posts->firstItem(),
+                'to' => $posts->lastItem(),
+            ],
         ]);
     }
 
@@ -63,8 +64,8 @@ class PostController extends Controller
         try {
             // Store in MongoDB
             $post = Post::create([
-                "content" => $content,
-                "tags" => $contentTags
+                'content' => $content,
+                'tags' => $contentTags,
             ]);
 
             // The PostMetaData will be created by the Post model's created event
@@ -75,7 +76,7 @@ class PostController extends Controller
             Log::error('Failed to create post', [
                 'error' => $e->getMessage(),
                 'user_id' => Auth::id(),
-                'content_length' => strlen($content)
+                'content_length' => strlen($content),
             ]);
 
             return $this->error('Failed to create post. Please try again.', 500);
@@ -88,13 +89,14 @@ class PostController extends Controller
     public function show(string $id)
     {
         $post = Post::find($id);
-        if (!$post) {
-            return $this->error("Post not found", 404);
+        if (! $post) {
+            return $this->error('Post not found', 404);
         }
 
         $transformedPost = $this->postTransformer->transformPost($post);
+
         return $this->success([
-            "post" => $transformedPost
+            'post' => $transformedPost,
         ]);
     }
 
@@ -104,23 +106,27 @@ class PostController extends Controller
     public function update(Request $request, string $id)
     {
         $post = Post::find($id);
-        if (!$post) {
-            return $this->error("Post not found", 404);
+        if (! $post) {
+            return $this->error('Post not found', 404);
         }
 
         // Authorize the user
         if ($request->user()->cannot('update', $post)) {
-            return $this->error("You are not authorized to make this request", 403);
+            return $this->error('You are not authorized to make this request', 403);
         }
 
         // Validate content
         $request->validate([
-            "content" => "string|max:5000"
+            'content' => 'string|max:5000',
         ]);
 
         // Update
+        $content = $request->content ?? $post->content;
+        $contentTags = $this->filterHashTags($content);
+
         $post->update([
-            "content" => $request->content ?? $post->content
+            'content' => $content,
+            'tags' => $contentTags,
         ]);
 
         return $this->responseStatus(204);
@@ -132,23 +138,24 @@ class PostController extends Controller
     public function destroy(Request $request, string $id)
     {
         $post = Post::find($id);
-        if (!$post) {
-            return $this->error("Post not found", 404);
+        if (! $post) {
+            return $this->error('Post not found', 404);
         }
 
         // Authorize the user
         if ($request->user()->cannot('delete', $post)) {
-            return $this->error("You are not authorized to make this request", 403);
+            return $this->error('You are not authorized to make this request', 403);
         }
 
         try {
             $post->delete();
+
             return $this->responseStatus(204);
         } catch (\Exception $e) {
             Log::error('Failed to delete post', [
                 'error' => $e->getMessage(),
                 'post_id' => $id,
-                'user_id' => Auth::id()
+                'user_id' => Auth::id(),
             ]);
 
             return $this->error('Failed to delete post. Please try again.', 500);

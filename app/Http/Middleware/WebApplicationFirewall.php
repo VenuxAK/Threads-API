@@ -19,7 +19,7 @@ class WebApplicationFirewall
     public function handle(Request $request, Closure $next): Response
     {
         // Skip if WAF is disabled
-        if (!config('waf.enabled')) {
+        if (! config('waf.enabled')) {
             return $next($request);
         }
 
@@ -94,6 +94,7 @@ class WebApplicationFirewall
         }
 
         $token = $request->header('X-WAF-Bypass');
+
         return $token && in_array($token, $bypassTokens, true);
     }
 
@@ -108,12 +109,13 @@ class WebApplicationFirewall
         $blacklist = config('waf.ip_blacklist', []);
         if (in_array($clientIp, $blacklist, true)) {
             $this->logViolation($request, 'ip_blacklist', $clientIp);
+
             return $this->blockResponse('ip_blacklist', 'IP address is blacklisted');
         }
 
         // Check whitelist
         $whitelist = config('waf.ip_whitelist', []);
-        if (!empty($whitelist) && !in_array($clientIp, $whitelist, true)) {
+        if (! empty($whitelist) && ! in_array($clientIp, $whitelist, true)) {
             $this->logViolation($request, 'ip_not_whitelisted', $clientIp);
 
             if (config('waf.mode') === 'protect') {
@@ -134,7 +136,7 @@ class WebApplicationFirewall
 
         foreach ($rateLimits as $pattern => $limits) {
             if (Str::is($pattern, $path)) {
-                $key = 'waf:' . $pattern . ':' . $request->ip();
+                $key = 'waf:'.$pattern.':'.$request->ip();
 
                 if (RateLimiter::tooManyAttempts($key, $limits['max_attempts'])) {
                     $seconds = RateLimiter::availableIn($key);
@@ -161,11 +163,12 @@ class WebApplicationFirewall
      */
     private function checkSqlInjection(Request $request): ?array
     {
-        if (!config('waf.sql_injection.enabled')) {
+        if (! config('waf.sql_injection.enabled')) {
             return null;
         }
 
         $patterns = config('waf.sql_injection.patterns', []);
+
         return $this->checkPatterns($request, $patterns, 'sql_injection');
     }
 
@@ -174,11 +177,12 @@ class WebApplicationFirewall
      */
     private function checkXss(Request $request): ?array
     {
-        if (!config('waf.xss.enabled')) {
+        if (! config('waf.xss.enabled')) {
             return null;
         }
 
         $patterns = config('waf.xss.patterns', []);
+
         return $this->checkPatterns($request, $patterns, 'xss');
     }
 
@@ -187,11 +191,12 @@ class WebApplicationFirewall
      */
     private function checkPathTraversal(Request $request): ?array
     {
-        if (!config('waf.path_traversal.enabled')) {
+        if (! config('waf.path_traversal.enabled')) {
             return null;
         }
 
         $patterns = config('waf.path_traversal.patterns', []);
+
         return $this->checkPatterns($request, $patterns, 'path_traversal');
     }
 
@@ -200,7 +205,7 @@ class WebApplicationFirewall
      */
     private function checkUserAgent(Request $request): ?array
     {
-        if (!config('waf.user_agent_blocking.enabled')) {
+        if (! config('waf.user_agent_blocking.enabled')) {
             return null;
         }
 
@@ -259,15 +264,18 @@ class WebApplicationFirewall
      */
     private function checkFileUploads(Request $request): ?array
     {
-        if (!config('waf.file_upload.enabled')) {
+        if (! config('waf.file_upload.enabled')) {
             return null;
         }
 
         $config = config('waf.file_upload', []);
         $files = $request->allFiles();
 
-        foreach ($files as $fileArray) {
-            foreach ((array) $fileArray as $file) {
+        foreach ($files as $fileOrArray) {
+            // Handle both single file and array of files
+            $fileList = is_array($fileOrArray) ? $fileOrArray : [$fileOrArray];
+
+            foreach ($fileList as $file) {
                 // Check file size
                 $maxSize = ($config['max_size'] ?? 10240) * 1024; // Convert KB to bytes
                 if ($file->getSize() > $maxSize) {
@@ -290,7 +298,7 @@ class WebApplicationFirewall
 
                 // Check allowed extensions if specified
                 $allowedExtensions = $config['allowed_extensions'] ?? [];
-                if (!empty($allowedExtensions) && !in_array($extension, $allowedExtensions, true)) {
+                if (! empty($allowedExtensions) && ! in_array($extension, $allowedExtensions, true)) {
                     return [
                         'type' => 'file_upload',
                         'reason' => 'File extension not allowed',
@@ -341,7 +349,7 @@ class WebApplicationFirewall
      */
     private function logViolation(Request $request, string $violationType, string $details): void
     {
-        if (!config('waf.logging.enabled')) {
+        if (! config('waf.logging.enabled')) {
             return;
         }
 
