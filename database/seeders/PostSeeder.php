@@ -131,17 +131,17 @@ class PostSeeder extends Seeder
                 ]);
 
                 // Create post metadata with random interaction counts
-                PostMetaData::create([
-                    'post_id' => $post->id,
-                    'user_id' => $user->id,
-                    'likes_count' => rand(0, 100),
-                    'comments_count' => rand(0, 50),
-                    'shares_count' => rand(0, 30),
-                    'visibility' => 'public',
-                    'status' => 'published',
-                    'created_at' => $createdAt,
-                    'updated_at' => $createdAt,
-                ]);
+                // PostMetaData::create([
+                //     'post_id' => $post->id,
+                //     'user_id' => $user->id,
+                //     'likes_count' => rand(0, 100),
+                //     'comments_count' => rand(0, 50),
+                //     'shares_count' => rand(0, 30),
+                //     'visibility' => 'public',
+                //     'status' => 'published',
+                //     'created_at' => $createdAt,
+                //     'updated_at' => $createdAt,
+                // ]);
 
                 $createdCount++;
             } catch (\Exception $e) {
@@ -152,11 +152,11 @@ class PostSeeder extends Seeder
         // Re-enable model events
         Post::boot();
 
-        $this->command->info('Successfully created ' . $createdCount . ' posts with realistic data.');
-        $this->command->info('Posts have meaningful hashtags that will make search work properly.');
-        $this->command->info('Search examples:');
-        $this->command->info('  - Search for "tech" will find posts about technology');
-        $this->command->info('  - Search for "hiking" will find outdoor activity posts');
-        $this->command->info('  - Search for "laravel" will find programming posts');
+        // $this->command->info('Successfully created ' . $createdCount . ' posts with realistic data.');
+        // $this->command->info('Posts have meaningful hashtags that will make search work properly.');
+        // $this->command->info('Search examples:');
+        // $this->command->info('  - Search for "tech" will find posts about technology');
+        // $this->command->info('  - Search for "hiking" will find outdoor activity posts');
+        // $this->command->info('  - Search for "laravel" will find programming posts');
     }
 }
