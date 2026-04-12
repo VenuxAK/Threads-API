@@ -2,8 +2,10 @@
 
 namespace App\Transformers;
 
+use App\Models\PostLike;
 use App\Models\PostMetaData;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -30,6 +32,9 @@ class PostTransformer
         // Get post IDs for metadata lookup
         $postIds = $postCollection->pluck('id')->values();
 
+        // Get current user ID
+        $currentUserId = Auth::id();
+
         // Retrieve the users corresponding to the post authors
         // Use caching to reduce database queries
         $users = Cache::remember(
@@ -47,8 +52,17 @@ class PostTransformer
             ->get(['post_id', 'likes_count', 'comments_count', 'shares_count'])
             ->keyBy('post_id');
 
+        // If user is authenticated, get their liked posts in batch
+        $likedPostIds = [];
+        if ($currentUserId) {
+            $likedPostIds = PostLike::whereIn('post_id', $postIds)
+                ->where('user_id', $currentUserId)
+                ->pluck('post_id')
+                ->toArray();
+        }
+
         // Transform the posts to include user information
-        $transformedPosts = $postCollection->map(function ($post) use ($users, $metadata) {
+        $transformedPosts = $postCollection->map(function ($post) use ($users, $metadata, $likedPostIds) {
             // Get user from cached collection
             $user = $users->get($post->user_id);
 
@@ -62,6 +76,10 @@ class PostTransformer
                 'tags' => $post->tags ?? [],
                 'published_at' => $post->created_at->diffForHumans(),
                 'edited_at' => $post->updated_at->diffForHumans(),
+                'likes' => $postMetadata ? $postMetadata->likes_count : 0,
+                'comments' => $postMetadata ? $postMetadata->comments_count : 0,
+                'reposts' => $postMetadata ? $postMetadata->shares_count : 0,
+                'is_liked' => in_array($post->id, $likedPostIds),
                 'interactions' => [
                     'likes' => $postMetadata ? $postMetadata->likes_count : 0,
                     'comments' => $postMetadata ? $postMetadata->comments_count : 0,

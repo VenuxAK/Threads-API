@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Post;
 use App\Models\User;
+use Dom\Comment;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -15,6 +16,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Post::truncate();
+        // Comment::truncate();
         // Create test users first
         $this->call([
             UserSeeder::class,
@@ -30,11 +32,11 @@ class DatabaseSeeder extends Seeder
         // PostMetaData is created within PostSeeder
         // No need for separate PostMetaDataSeeder
 
-        $this->command->info('Database seeded successfully!');
-        $this->command->info('Test users created with credentials:');
-        $this->command->info('  - Email: test@example.com, Password: password');
-        $this->command->info('  - Email: user@example.com, Password: password');
-        $this->command->info('Search functionality now works with meaningful data:');
-        $this->command->info('  Try searching for: tech, hiking, laravel, programming, travel');
+        // $this->command->info('Database seeded successfully!');
+        // $this->command->info('Test users created with credentials:');
+        // $this->command->info('  - Email: test@example.com, Password: password');
+        // $this->command->info('  - Email: user@example.com, Password: password');
+        // $this->command->info('Search functionality now works with meaningful data:');
+        // $this->command->info('  Try searching for: tech, hiking, laravel, programming, travel');
     }
 }
