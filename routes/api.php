@@ -73,9 +73,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
      * @desc Comment operations
      */
     Route::prefix('comments')->group(function () {
+        Route::get('/{id}/thread', [CommentController::class, 'thread']);
+        Route::get('/{id}/replies', [CommentController::class, 'replies']);
         Route::get('/{id}', [CommentController::class, 'show']);
         Route::delete('/{id}', [CommentController::class, 'destroy']);
-        Route::get('/{id}/replies', [CommentController::class, 'replies']);
     });
 
     /**

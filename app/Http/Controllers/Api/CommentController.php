@@ -54,7 +54,7 @@ class CommentController extends Controller
                             'error' => $e->getMessage()
                         ]);
                     }
-                    
+
                     // Simplified user data to avoid database connection issues
                     // In production, you would want to properly load users with caching
                     return [
@@ -77,7 +77,7 @@ class CommentController extends Controller
                         'comment_id' => $comment->id,
                         'error' => $e->getMessage()
                     ]);
-                    
+
                     return [
                         'id' => $comment->id,
                         'content' => $comment->content,
@@ -142,7 +142,7 @@ class CommentController extends Controller
             if (!$parentComment) {
                 return $this->error('Parent comment not found', 404);
             }
-            
+
             // Make sure parent comment belongs to the same post
             if ($parentComment->post_id != $id) {
                 return $this->error('Parent comment does not belong to this post', 400);
@@ -281,7 +281,7 @@ class CommentController extends Controller
     {
         try {
             Log::info('Fetching replies for comment', ['comment_id' => $id]);
-            
+
             $comment = Comment::find($id);
             if (!$comment) {
                 return $this->error("Comment not found", 404);
@@ -294,6 +294,17 @@ class CommentController extends Controller
             Log::info('Replies query result', ['count' => $replies->count()]);
 
             $transformedReplies = $replies->map(function ($reply) {
+                // Get reply count for this reply (nested replies)
+                $replyCount = 0;
+                try {
+                    $replyCount = Comment::where('parent_id', $reply->id)->count();
+                } catch (\Exception $e) {
+                    Log::warning('Failed to count nested replies for comment', [
+                        'comment_id' => $reply->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+
                 // Simplified: always return a default user to avoid database issues
                 // In a production app, you would want to properly handle user loading
                 // with proper error handling and possibly caching
@@ -303,6 +314,7 @@ class CommentController extends Controller
                     'post_id' => $reply->post_id,
                     'parent_id' => $reply->parent_id,
                     'created_at' => $reply->created_at->diffForHumans(),
+                    'reply_count' => $replyCount,
                     'author' => [
                         'name' => 'User',
                         'username' => 'user_' . substr($reply->user_id, 0, 8),
@@ -330,6 +342,113 @@ class CommentController extends Controller
             }
 
             return $this->error('Failed to fetch replies: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Flat chronological thread: all nested replies under a top-level comment
+     * (Instagram / Threads style — one scrollable list, no per-branch expand).
+     *
+     * @route GET /api/v1/comments/{id}/thread
+     */
+    public function thread(string $id)
+    {
+        try {
+            $root = Comment::find($id);
+            if (!$root) {
+                return $this->error('Comment not found', 404);
+            }
+
+            $descendantIds = [];
+            $frontier = [(string) $root->id];
+
+            while (! empty($frontier)) {
+                $children = Comment::where('post_id', $root->post_id)
+                    ->whereIn('parent_id', $frontier)
+                    ->pluck('id')
+                    ->all();
+
+                if (empty($children)) {
+                    break;
+                }
+
+                foreach ($children as $cid) {
+                    $descendantIds[] = $cid;
+                }
+                $frontier = array_map('strval', $children);
+            }
+
+            if (empty($descendantIds)) {
+                return $this->success([
+                    'thread' => [],
+                ]);
+            }
+
+            $rows = Comment::whereIn('id', $descendantIds)
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            $parentIds = $rows->pluck('parent_id')->unique()->filter()->values()->all();
+            $parents = Comment::whereIn('id', $parentIds)->get()->keyBy(function ($m) {
+                return (string) $m->id;
+            });
+
+            $rootId = (string) $root->id;
+
+            $thread = $rows->map(function ($reply) use ($parents, $rootId) {
+                $replyCount = 0;
+                try {
+                    $replyCount = Comment::where('parent_id', $reply->id)->count();
+                } catch (\Exception $e) {
+                    Log::warning('Failed to count nested replies for comment', [
+                        'comment_id' => $reply->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+
+                $parentKey = $reply->parent_id !== null ? (string) $reply->parent_id : null;
+                $replyingTo = null;
+                if ($parentKey !== null && $parentKey !== $rootId) {
+                    $parent = $parents->get($parentKey);
+                    if ($parent) {
+                        $replyingTo = [
+                            'username' => 'user_' . substr($parent->user_id, 0, 8),
+                        ];
+                    }
+                }
+
+                return [
+                    'id' => $reply->id,
+                    'content' => $reply->content,
+                    'post_id' => $reply->post_id,
+                    'parent_id' => $reply->parent_id,
+                    'created_at' => $reply->created_at->diffForHumans(),
+                    'reply_count' => $replyCount,
+                    'replying_to' => $replyingTo,
+                    'author' => [
+                        'name' => 'User',
+                        'username' => 'user_' . substr($reply->user_id, 0, 8),
+                        'avatar' => null,
+                        'id' => $reply->user_id,
+                    ],
+                ];
+            });
+
+            return $this->success([
+                'thread' => $thread,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch comment thread', [
+                'error' => $e->getMessage(),
+                'comment_id' => $id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            if (str_contains($e->getMessage(), 'prepare()') || str_contains($e->getMessage(), 'PDO') || str_contains($e->getMessage(), 'connection')) {
+                return $this->error('Database connection issue. Please check your database configuration.', 500);
+            }
+
+            return $this->error('Failed to fetch comment thread: ' . $e->getMessage(), 500);
         }
     }
 }
