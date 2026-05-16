@@ -56,7 +56,9 @@ class PostInteractionTest extends TestCase
     {
         $response = $this->postJson("/api/v1/posts/{$this->post->id}/like");
 
-        $response->assertStatus(204);
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.liked', true);
+        $response->assertJsonPath('data.likes_count', 1);
 
         // Verify like count increased
         $metadata = PostMetaData::where('post_id', $this->post->id)->first();
@@ -74,7 +76,8 @@ class PostInteractionTest extends TestCase
         // Then unlike it
         $response = $this->deleteJson("/api/v1/posts/{$this->post->id}/like");
 
-        $response->assertStatus(204);
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.liked', false);
 
         // Verify like count decreased
         $metadata = PostMetaData::where('post_id', $this->post->id)->first();
@@ -82,21 +85,19 @@ class PostInteractionTest extends TestCase
     }
 
     /**
-     * Test user cannot like a post twice.
+     * A second POST like toggles off (unlike) when already liked.
      */
-    public function test_user_can_like_a_post_multiple_times(): void
+    public function test_second_post_like_toggles_unlike(): void
     {
-        // Like the post once
         $this->postJson("/api/v1/posts/{$this->post->id}/like");
 
-        // Like it again (current implementation allows duplicate likes)
         $response = $this->postJson("/api/v1/posts/{$this->post->id}/like");
 
-        $response->assertStatus(204);
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.liked', false);
 
-        // Verify like count is 2 (allows duplicate likes)
         $metadata = PostMetaData::where('post_id', $this->post->id)->first();
-        $this->assertEquals(2, $metadata->likes_count);
+        $this->assertEquals(0, $metadata->likes_count);
     }
 
     /**
@@ -104,10 +105,9 @@ class PostInteractionTest extends TestCase
      */
     public function test_user_can_unlike_a_post_even_if_not_liked(): void
     {
-        // Unlike a post that hasn't been liked (does nothing but returns 204)
         $response = $this->deleteJson("/api/v1/posts/{$this->post->id}/like");
 
-        $response->assertStatus(204);
+        $response->assertStatus(400);
 
         // Verify like count is still 0
         $metadata = PostMetaData::where('post_id', $this->post->id)->first();
@@ -121,7 +121,8 @@ class PostInteractionTest extends TestCase
     {
         $response = $this->postJson("/api/v1/posts/{$this->post->id}/share");
 
-        $response->assertStatus(204);
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.shares_count', 1);
 
         // Verify share count increased
         $metadata = PostMetaData::where('post_id', $this->post->id)->first();
@@ -140,7 +141,7 @@ class PostInteractionTest extends TestCase
         Sanctum::actingAs($this->otherUser);
         $response = $this->postJson("/api/v1/posts/{$this->post->id}/like");
 
-        $response->assertStatus(204);
+        $response->assertStatus(200);
 
         // Verify like count is 2
         $metadata = PostMetaData::where('post_id', $this->post->id)->first();
@@ -299,7 +300,7 @@ class PostInteractionTest extends TestCase
 
         $response = $this->postJson("/api/v1/posts/{$ownPost->id}/like");
 
-        $response->assertStatus(204);
+        $response->assertStatus(200);
 
         // Verify like count increased
         $metadata = PostMetaData::where('post_id', $ownPost->id)->first();
@@ -401,5 +402,73 @@ class PostInteractionTest extends TestCase
         $this->assertIsInt($responseData['data']['likes_count']);
         $this->assertIsInt($responseData['data']['comments_count']);
         $this->assertIsInt($responseData['data']['shares_count']);
+    }
+
+    public function test_user_can_repost_a_post(): void
+    {
+        $response = $this->postJson("/api/v1/posts/{$this->post->id}/repost");
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.reposted', true);
+        $response->assertJsonPath('data.reposts_count', 1);
+        $this->assertDatabaseHas('post_reposts', [
+            'post_id' => (string) $this->post->id,
+            'user_id' => $this->user->id,
+        ]);
+    }
+
+    public function test_user_can_toggle_repost_off(): void
+    {
+        $this->postJson("/api/v1/posts/{$this->post->id}/repost");
+        $response = $this->postJson("/api/v1/posts/{$this->post->id}/repost");
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.reposted', false);
+        $response->assertJsonPath('data.reposts_count', 0);
+        $this->assertDatabaseMissing('post_reposts', [
+            'post_id' => (string) $this->post->id,
+            'user_id' => $this->user->id,
+        ]);
+    }
+
+    public function test_check_repost_reflects_state(): void
+    {
+        $this->getJson("/api/v1/posts/{$this->post->id}/repost/check")
+            ->assertStatus(200)
+            ->assertJsonPath('data.reposted', false);
+
+        $this->postJson("/api/v1/posts/{$this->post->id}/repost");
+
+        $this->getJson("/api/v1/posts/{$this->post->id}/repost/check")
+            ->assertStatus(200)
+            ->assertJsonPath('data.reposted', true);
+    }
+
+    public function test_repost_on_nonexistent_post_returns_404(): void
+    {
+        $this->postJson('/api/v1/posts/nonexistent-id/repost')
+            ->assertStatus(404);
+    }
+
+    public function test_me_reposts_index_returns_transformed_posts(): void
+    {
+        $this->postJson("/api/v1/posts/{$this->post->id}/repost");
+
+        $response = $this->getJson('/api/v1/me/reposts?page=1');
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'success',
+            'data' => [
+                'posts',
+                'pagination' => [
+                    'total',
+                    'current_page',
+                    'last_page',
+                ],
+            ],
+        ]);
+        $postIds = collect($response->json('data.posts'))->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $this->assertContains((string) $this->post->id, $postIds);
     }
 }

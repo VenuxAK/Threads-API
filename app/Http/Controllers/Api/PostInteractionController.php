@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Post;
 use App\Models\PostLike;
 use App\Models\PostMetaData;
+use App\Models\PostRepost;
 use App\Utils\Http;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -43,11 +44,10 @@ class PostInteractionController extends Controller
             if ($existingLike) {
                 $existingLike->delete();
 
-                // Update likes_count
+                PostMetaData::where('post_id', $id)
+                    ->where('likes_count', '>', 0)
+                    ->decrement('likes_count');
                 $postMeta = PostMetaData::where('post_id', $id)->first();
-                if ($postMeta && $postMeta->likes_count > 0) {
-                    $postMeta->decrement('likes_count');
-                }
 
                 return $this->success([
                     'likes_count' => $postMeta ? $postMeta->likes_count : 0,
@@ -64,7 +64,7 @@ class PostInteractionController extends Controller
             // Update likes_count in metadata
             $postMeta = PostMetaData::firstOrCreate(
                 ['post_id' => $id],
-                ['user_id' => $post->user_id, 'likes_count' => 0, 'comments_count' => 0, 'shares_count' => 0]
+                ['user_id' => $post->user_id, 'likes_count' => 0, 'comments_count' => 0, 'shares_count' => 0, 'reposts_count' => 0]
             );
             
             $postMeta->increment('likes_count');
@@ -117,11 +117,10 @@ class PostInteractionController extends Controller
             // Delete like record
             $existingLike->delete();
 
-            // Update likes_count
+            PostMetaData::where('post_id', $id)
+                ->where('likes_count', '>', 0)
+                ->decrement('likes_count');
             $postMeta = PostMetaData::where('post_id', $id)->first();
-            if ($postMeta && $postMeta->likes_count > 0) {
-                $postMeta->decrement('likes_count');
-            }
 
             return $this->success([
                 'likes_count' => $postMeta ? $postMeta->likes_count : 0,
@@ -198,13 +197,13 @@ class PostInteractionController extends Controller
         try {
             $postMeta = PostMetaData::firstOrCreate(
                 ['post_id' => $id],
-                ['user_id' => $post->user_id, 'likes_count' => 0, 'comments_count' => 0, 'shares_count' => 0]
+                ['user_id' => $post->user_id, 'likes_count' => 0, 'comments_count' => 0, 'shares_count' => 0, 'reposts_count' => 0]
             );
             
             $postMeta->increment('shares_count');
 
             return $this->success([
-                'shares_count' => $postMeta->shares_count
+                'shares_count' => $postMeta->fresh()->shares_count,
             ]);
 
         } catch (\Exception $e) {
@@ -215,6 +214,106 @@ class PostInteractionController extends Controller
             ]);
 
             return $this->error('Failed to share post. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Toggle repost (auth user): create repost or remove existing (Threads-style).
+     *
+     * @route POST /api/v1/posts/{id}/repost
+     */
+    public function repost(string $id)
+    {
+        $post = Post::find($id);
+        if (! $post) {
+            return $this->error('Post not found', 404);
+        }
+
+        $userId = Auth::id();
+        if (! $userId) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        try {
+            $existing = PostRepost::where('post_id', (string) $id)
+                ->where('user_id', $userId)
+                ->first();
+
+            $postMeta = PostMetaData::firstOrCreate(
+                ['post_id' => $id],
+                ['user_id' => $post->user_id, 'likes_count' => 0, 'comments_count' => 0, 'shares_count' => 0, 'reposts_count' => 0]
+            );
+
+            if ($existing) {
+                $existing->delete();
+                PostMetaData::where('post_id', $id)
+                    ->where('reposts_count', '>', 0)
+                    ->decrement('reposts_count');
+
+                return $this->success([
+                    'reposts_count' => PostMetaData::where('post_id', $id)->value('reposts_count') ?? 0,
+                    'reposted' => false,
+                ]);
+            }
+
+            PostRepost::create([
+                'post_id' => (string) $id,
+                'user_id' => $userId,
+            ]);
+
+            $postMeta->increment('reposts_count');
+
+            return $this->success([
+                'reposts_count' => $postMeta->fresh()->reposts_count,
+                'reposted' => true,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to toggle repost', [
+                'error' => $e->getMessage(),
+                'post_id' => $id,
+                'user_id' => $userId,
+            ]);
+
+            return $this->error('Failed to repost. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Whether the authenticated user has reposted this post.
+     *
+     * @route GET /api/v1/posts/{id}/repost/check
+     */
+    public function checkRepost(string $id)
+    {
+        $post = Post::find($id);
+        if (! $post) {
+            return $this->error('Post not found', 404);
+        }
+
+        $userId = Auth::id();
+        if (! $userId) {
+            return $this->success([
+                'reposted' => false,
+                'message' => 'User not authenticated',
+            ]);
+        }
+
+        try {
+            $reposted = PostRepost::where('post_id', (string) $id)
+                ->where('user_id', $userId)
+                ->exists();
+
+            return $this->success([
+                'reposted' => $reposted,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to check repost status', [
+                'error' => $e->getMessage(),
+                'post_id' => $id,
+                'user_id' => $userId,
+            ]);
+
+            return $this->error('Failed to check repost status. Please try again.', 500);
         }
     }
 
@@ -240,7 +339,8 @@ class PostInteractionController extends Controller
                 'user_id' => $post->user_id,
                 'likes_count' => 0,
                 'comments_count' => 0,
-                'shares_count' => 0
+                'shares_count' => 0,
+                'reposts_count' => 0,
             ]);
         }
 
@@ -248,6 +348,7 @@ class PostInteractionController extends Controller
             'likes_count' => $metadata->likes_count,
             'comments_count' => $metadata->comments_count,
             'shares_count' => $metadata->shares_count,
+            'reposts_count' => $metadata->reposts_count,
         ]);
     }
 }

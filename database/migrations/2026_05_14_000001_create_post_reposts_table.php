@@ -1,0 +1,33 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('post_reposts', function (Blueprint $table) {
+            $table->id();
+            $table->string('post_id', 48);
+            $table->unsignedBigInteger('user_id');
+            $table->timestamps();
+
+            $table->unique(['post_id', 'user_id']);
+            $table->index('post_id');
+            $table->index('user_id');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('post_reposts');
+    }
+};

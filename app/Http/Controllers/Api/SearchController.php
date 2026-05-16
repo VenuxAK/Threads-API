@@ -75,8 +75,7 @@ class SearchController extends Controller
                 $q->where("content", "regex", "/{$cleanQuery}/i");
             });
 
-            // Also search in tags if query is short (likely a tag/hashtag)
-            if (strlen($tagQuery) <= 30) {
+            if (strlen($tagQuery) <= 30 && strlen($tagQuery) > 0) {
                 $postQuery->orWhere(function ($q) use ($tagQuery) {
                     // Exact tag match
                     $q->where("tags", "regex", "/^{$tagQuery}$/i")

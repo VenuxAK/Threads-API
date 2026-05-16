@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PostRequest;
 use App\Models\Post;
+use App\Models\PostRepost;
 use App\Transformers\PostTransformer;
 use App\Utils\HashtagTrait;
 use App\Utils\Http;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -108,12 +110,14 @@ class MyProfileController extends Controller
         $contentTags = $this->filterHashTags($content);
 
         try {
-            Post::create([
+            $post = Post::create([
                 'content' => $content,
                 'tags' => $contentTags,
             ]);
 
-            return $this->responseStatus(204);
+            return $this->success([
+                'post' => $this->postTransformer->transformPost($post),
+            ], 'Post created successfully', 201);
         } catch (\Exception $e) {
             Log::error('Failed to create post in MyProfileController', [
                 'error' => $e->getMessage(),
@@ -179,5 +183,53 @@ class MyProfileController extends Controller
 
             return $this->error('Failed to delete post. Please try again.', 500);
         }
+    }
+
+    /**
+     * Posts the authenticated user has reposted (newest repost first).
+     *
+     * @route GET /api/v1/me/reposts
+     */
+    public function repostsIndex(Request $request)
+    {
+        $perPage = min($request->get('per_page', 15), 50);
+        $page = max($request->get('page', 1), 1);
+
+        $repostPaginator = PostRepost::where('user_id', Auth::id())
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $postsInOrder = $this->postsFromRepostPaginator($repostPaginator);
+
+        return $this->success([
+            'posts' => $this->postTransformer->transformPosts($postsInOrder),
+            'pagination' => [
+                'total' => $repostPaginator->total(),
+                'per_page' => $repostPaginator->perPage(),
+                'current_page' => $repostPaginator->currentPage(),
+                'last_page' => $repostPaginator->lastPage(),
+                'from' => $repostPaginator->firstItem(),
+                'to' => $repostPaginator->lastItem(),
+            ],
+        ]);
+    }
+
+    /**
+     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator  $repostPaginator
+     */
+    private function postsFromRepostPaginator($repostPaginator): Collection
+    {
+        $idsInOrder = $repostPaginator->getCollection()->pluck('post_id')->map(fn ($id) => (string) $id);
+        if ($idsInOrder->isEmpty()) {
+            return collect([]);
+        }
+
+        $uniqueIds = $idsInOrder->unique()->values();
+        $postsById = Post::whereIn('id', $uniqueIds)->get()->keyBy(fn ($p) => (string) $p->id);
+
+        return $idsInOrder
+            ->map(fn (string $pid) => $postsById->get($pid))
+            ->filter()
+            ->values();
     }
 }
