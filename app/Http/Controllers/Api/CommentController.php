@@ -36,15 +36,19 @@ class CommentController extends Controller
             }
 
             $comments = Comment::where('post_id', $id)
-                ->whereNull('parent_id') // Only top-level comments
+                ->whereNull('parent_id')
                 ->latest()
                 ->get();
 
             Log::info('Comments query result', ['count' => $comments->count()]);
 
-            $transformedComments = $comments->map(function ($comment) {
+            $userIds = $comments->pluck('user_id')->unique()->values();
+            $users = User::whereIn('id', $userIds)
+                ->get(['id', 'name', 'username', 'avatar'])
+                ->keyBy('id');
+
+            $transformedComments = $comments->map(function ($comment) use ($users) {
                 try {
-                    // Get reply count for this comment
                     $replyCount = 0;
                     try {
                         $replyCount = Comment::where('parent_id', $comment->id)->count();
@@ -55,8 +59,8 @@ class CommentController extends Controller
                         ]);
                     }
 
-                    // Simplified user data to avoid database connection issues
-                    // In production, you would want to properly load users with caching
+                    $user = $users->get($comment->user_id);
+
                     return [
                         'id' => $comment->id,
                         'content' => $comment->content,
@@ -64,15 +68,19 @@ class CommentController extends Controller
                         'parent_id' => $comment->parent_id,
                         'created_at' => $comment->created_at->diffForHumans(),
                         'reply_count' => $replyCount,
-                        'author' => [
+                        'author' => $user ? [
+                            'id' => $user->id,
+                            'name' => $user->name,
+                            'username' => $user->username,
+                            'avatar' => $user->avatar,
+                        ] : [
+                            'id' => $comment->user_id,
                             'name' => 'User',
                             'username' => 'user_' . substr($comment->user_id, 0, 8),
                             'avatar' => null,
-                            'id' => $comment->user_id
                         ]
                     ];
                 } catch (\Exception $e) {
-                    // If everything fails, return comment with minimal info
                     Log::error('Failed to transform comment', [
                         'comment_id' => $comment->id,
                         'error' => $e->getMessage()
@@ -86,10 +94,10 @@ class CommentController extends Controller
                         'created_at' => $comment->created_at->diffForHumans(),
                         'reply_count' => 0,
                         'author' => [
+                            'id' => null,
                             'name' => 'Unknown User',
                             'username' => 'unknown',
                             'avatar' => null,
-                            'id' => null
                         ]
                     ];
                 }
@@ -293,8 +301,12 @@ class CommentController extends Controller
 
             Log::info('Replies query result', ['count' => $replies->count()]);
 
-            $transformedReplies = $replies->map(function ($reply) {
-                // Get reply count for this reply (nested replies)
+            $replyUserIds = $replies->pluck('user_id')->unique()->values();
+            $replyUsers = User::whereIn('id', $replyUserIds)
+                ->get(['id', 'name', 'username', 'avatar'])
+                ->keyBy('id');
+
+            $transformedReplies = $replies->map(function ($reply) use ($replyUsers) {
                 $replyCount = 0;
                 try {
                     $replyCount = Comment::where('parent_id', $reply->id)->count();
@@ -305,9 +317,8 @@ class CommentController extends Controller
                     ]);
                 }
 
-                // Simplified: always return a default user to avoid database issues
-                // In a production app, you would want to properly handle user loading
-                // with proper error handling and possibly caching
+                $user = $replyUsers->get($reply->user_id);
+
                 return [
                     'id' => $reply->id,
                     'content' => $reply->content,
@@ -315,11 +326,16 @@ class CommentController extends Controller
                     'parent_id' => $reply->parent_id,
                     'created_at' => $reply->created_at->diffForHumans(),
                     'reply_count' => $replyCount,
-                    'author' => [
+                    'author' => $user ? [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'username' => $user->username,
+                        'avatar' => $user->avatar,
+                    ] : [
+                        'id' => $reply->user_id,
                         'name' => 'User',
                         'username' => 'user_' . substr($reply->user_id, 0, 8),
                         'avatar' => null,
-                        'id' => $reply->user_id
                     ]
                 ];
             });
@@ -393,9 +409,14 @@ class CommentController extends Controller
                 return (string) $m->id;
             });
 
+            $threadUserIds = $rows->pluck('user_id')->unique()->values();
+            $threadUsers = User::whereIn('id', $threadUserIds)
+                ->get(['id', 'name', 'username', 'avatar'])
+                ->keyBy('id');
+
             $rootId = (string) $root->id;
 
-            $thread = $rows->map(function ($reply) use ($parents, $rootId) {
+            $thread = $rows->map(function ($reply) use ($parents, $rootId, $threadUsers) {
                 $replyCount = 0;
                 try {
                     $replyCount = Comment::where('parent_id', $reply->id)->count();
@@ -417,6 +438,8 @@ class CommentController extends Controller
                     }
                 }
 
+                $user = $threadUsers->get($reply->user_id);
+
                 return [
                     'id' => $reply->id,
                     'content' => $reply->content,
@@ -425,11 +448,16 @@ class CommentController extends Controller
                     'created_at' => $reply->created_at->diffForHumans(),
                     'reply_count' => $replyCount,
                     'replying_to' => $replyingTo,
-                    'author' => [
+                    'author' => $user ? [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'username' => $user->username,
+                        'avatar' => $user->avatar,
+                    ] : [
+                        'id' => $reply->user_id,
                         'name' => 'User',
                         'username' => 'user_' . substr($reply->user_id, 0, 8),
                         'avatar' => null,
-                        'id' => $reply->user_id,
                     ],
                 ];
             });

@@ -4,6 +4,7 @@ namespace App\Transformers;
 
 use App\Models\PostLike;
 use App\Models\PostMetaData;
+use App\Models\PostRepost;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -49,20 +50,29 @@ class PostTransformer
 
         // Retrieve post metadata in batch
         $metadata = PostMetaData::whereIn('post_id', $postIds)
-            ->get(['post_id', 'likes_count', 'comments_count', 'shares_count'])
+            ->get(['post_id', 'likes_count', 'comments_count', 'shares_count', 'reposts_count'])
             ->keyBy('post_id');
 
-        // If user is authenticated, get their liked posts in batch
         $likedPostIds = [];
         if ($currentUserId) {
-            $likedPostIds = PostLike::whereIn('post_id', $postIds)
+            $likedPostIds = PostLike::whereIn('post_id', $postIds->map(fn ($id) => (string) $id))
                 ->where('user_id', $currentUserId)
                 ->pluck('post_id')
+                ->map(fn ($id) => (string) $id)
+                ->toArray();
+        }
+
+        $repostedPostIds = [];
+        if ($currentUserId) {
+            $repostedPostIds = PostRepost::whereIn('post_id', $postIds->map(fn ($id) => (string) $id))
+                ->where('user_id', $currentUserId)
+                ->pluck('post_id')
+                ->map(fn ($id) => (string) $id)
                 ->toArray();
         }
 
         // Transform the posts to include user information
-        $transformedPosts = $postCollection->map(function ($post) use ($users, $metadata, $likedPostIds) {
+        $transformedPosts = $postCollection->map(function ($post) use ($users, $metadata, $likedPostIds, $repostedPostIds) {
             // Get user from cached collection
             $user = $users->get($post->user_id);
 
@@ -78,19 +88,23 @@ class PostTransformer
                 'edited_at' => $post->updated_at->diffForHumans(),
                 'likes' => $postMetadata ? $postMetadata->likes_count : 0,
                 'comments' => $postMetadata ? $postMetadata->comments_count : 0,
-                'reposts' => $postMetadata ? $postMetadata->shares_count : 0,
-                'is_liked' => in_array($post->id, $likedPostIds),
+                'reposts' => $postMetadata ? $postMetadata->reposts_count : 0,
+                'is_liked' => in_array((string) $post->id, $likedPostIds, true),
+                'is_reposted' => in_array((string) $post->id, $repostedPostIds, true), 
                 'interactions' => [
                     'likes' => $postMetadata ? $postMetadata->likes_count : 0,
                     'comments' => $postMetadata ? $postMetadata->comments_count : 0,
                     'shares' => $postMetadata ? $postMetadata->shares_count : 0,
+                    'reposts' => $postMetadata ? $postMetadata->reposts_count : 0,
                 ],
                 'author' => $user ? [
+                    'id' => $user->id,
                     'name' => $user->name,
                     'username' => $user->username,
                     'avatar' => $user->avatar,
                     'bio' => $user->bio,
                 ] : [
+                    'id' => null,
                     'name' => 'Deleted User',
                     'username' => 'deleted',
                     'avatar' => null,

@@ -20,11 +20,11 @@ class PostSeeder extends Seeder
         // Get all users to assign posts to
         $users = User::all();
 
-        if ($users->isEmpty()) {
-            // Create some test users if none exist
-            $users = User::factory()->count(5)->create();
-            $this->command->info('Created 5 test users.');
-        }
+        // if ($users->isEmpty()) {
+        //     // Create some test users if none exist
+        //     $users = User::factory()->count(5)->create();
+        //     $this->command->info('Created 5 test users.');
+        // }
 
         // Define realistic posts with meaningful content and hashtags
         $posts = [

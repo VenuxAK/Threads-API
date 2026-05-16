@@ -17,6 +17,7 @@ class PostMetaData extends Model
         "likes_count",
         "comments_count",
         "shares_count",
+        "reposts_count",
         "visibility",
         "status",
         "scheduled_at",

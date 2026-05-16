@@ -68,10 +68,9 @@ class PostController extends Controller
                 'tags' => $contentTags,
             ]);
 
-            // The PostMetaData will be created by the Post model's created event
-            // If it fails, an exception will be thrown and caught here
-
-            return $this->responseStatus(204);
+            return $this->success([
+                'post' => $this->postTransformer->transformPost($post),
+            ], 'Post created successfully', 201);
         } catch (\Exception $e) {
             Log::error('Failed to create post', [
                 'error' => $e->getMessage(),

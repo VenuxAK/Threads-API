@@ -28,6 +28,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::prefix('me')->group(function () {
         // Auth user routes
         Route::get('/profile', [MyProfileController::class, 'me']); // Get auth user info
+        Route::get('/reposts', [MyProfileController::class, 'repostsIndex']);
         Route::apiResource('/posts', MyProfileController::class);
     });
 
@@ -60,6 +61,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::delete('/like', [PostInteractionController::class, 'unlike']);
         Route::get('/like/check', [PostInteractionController::class, 'checkLike']);
         Route::post('/share', [PostInteractionController::class, 'share']);
+        Route::post('/repost', [PostInteractionController::class, 'repost']);
+        Route::get('/repost/check', [PostInteractionController::class, 'checkRepost']);
         Route::get('/interactions', [PostInteractionController::class, 'interactions']);
 
         /**
