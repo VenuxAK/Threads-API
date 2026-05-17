@@ -90,7 +90,7 @@ class PostTransformer
                 'comments' => $postMetadata ? $postMetadata->comments_count : 0,
                 'reposts' => $postMetadata ? $postMetadata->reposts_count : 0,
                 'is_liked' => in_array((string) $post->id, $likedPostIds, true),
-                'is_reposted' => in_array((string) $post->id, $repostedPostIds, true), 
+                'is_reposted' => in_array((string) $post->id, $repostedPostIds, true),
                 'interactions' => [
                     'likes' => $postMetadata ? $postMetadata->likes_count : 0,
                     'comments' => $postMetadata ? $postMetadata->comments_count : 0,
