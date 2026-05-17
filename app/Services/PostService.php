@@ -33,22 +33,28 @@ class PostService
     {
         $tags = $this->filterHashTags($content);
 
+        $post = Post::create([
+            'content' => $content,
+            'tags' => $tags,
+            'user_id' => $userId,
+        ]);
+
         try {
-            $post = Post::create([
-                'content' => $content,
-                'tags' => $tags,
-            ]);
-
-            return $post;
-        } catch (\Exception $e) {
-            Log::error('Failed to create post', [
-                'error' => $e->getMessage(),
+            PostMetaData::create([
+                'post_id' => $post->id,
                 'user_id' => $userId,
-                'content_length' => strlen($content),
             ]);
-
+        } catch (\Exception $e) {
+            $post->delete();
+            Log::error('Failed to create PostMetaData, rolled back post', [
+                'error' => $e->getMessage(),
+                'post_id' => $post->id,
+                'user_id' => $userId,
+            ]);
             throw $e;
         }
+
+        return $post;
     }
 
     public function updatePost(string $id, string $content, int $userId): ?Post
@@ -77,16 +83,25 @@ class PostService
 
         try {
             $post->delete();
-            return true;
         } catch (\Exception $e) {
             Log::error('Failed to delete post', [
                 'error' => $e->getMessage(),
                 'post_id' => $id,
                 'user_id' => $userId,
             ]);
-
             throw $e;
         }
+
+        try {
+            PostMetaData::where('post_id', $id)->delete();
+        } catch (\Exception $e) {
+            Log::warning('Failed to clean up PostMetaData for deleted post', [
+                'post_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return true;
     }
 
     public function getRepostedPosts($repostPaginator): Collection

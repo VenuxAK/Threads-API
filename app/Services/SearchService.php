@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Post;
 use App\Models\User;
 use App\Transformers\PostTransformer;
-use Illuminate\Support\Facades\Log;
 
 class SearchService
 {
@@ -13,7 +12,7 @@ class SearchService
         private PostTransformer $postTransformer,
     ) {}
 
-    public function search(string $query, bool $includePosts = false): array
+    public function search(string $query, bool $includePosts = false, int $page = 1, int $perPage = 20): array
     {
         $cleanQuery = preg_replace('/[^a-zA-Z0-9\s#]/', '', $query);
 
@@ -37,10 +36,12 @@ class SearchService
         });
 
         if ($includePosts) {
-            $results['posts'] = $this->searchPosts($cleanQuery);
+            $results['posts'] = $this->searchPosts($cleanQuery, $page, $perPage);
             $results['search_metadata'] = [
                 'query' => $cleanQuery,
                 'total_users' => $users->count(),
+                'page' => $page,
+                'per_page' => $perPage,
             ];
         } else {
             $results['search_metadata'] = [
@@ -53,7 +54,7 @@ class SearchService
         return $results;
     }
 
-    private function searchPosts(string $cleanQuery): array
+    private function searchPosts(string $cleanQuery, int $page, int $perPage): array
     {
         $tagQuery = str_starts_with($cleanQuery, '#')
             ? substr($cleanQuery, 1)
@@ -71,18 +72,10 @@ class SearchService
             });
         }
 
-        $posts = $postQuery->latest()->limit(30)->get();
-
-        if ($posts->isEmpty() && strlen($cleanQuery) > 3) {
-            $words = explode(' ', $cleanQuery);
-            $simpleQuery = Post::query();
-            foreach ($words as $word) {
-                if (strlen($word) > 2) {
-                    $simpleQuery->orWhere('content', 'regex', "/{$word}/i");
-                }
-            }
-            $posts = $simpleQuery->latest()->limit(20)->get();
-        }
+        $posts = $postQuery->latest()
+            ->skip(($page - 1) * $perPage)
+            ->limit($perPage)
+            ->get();
 
         return $this->postTransformer->transformPosts($posts)->all();
     }
