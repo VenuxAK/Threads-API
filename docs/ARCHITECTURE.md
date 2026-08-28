@@ -11,12 +11,46 @@ ThreadsApp is a Threads-like social API. The design optimises for:
 * **Low latency** — RoadRunner (persistent PHP workers) + Redis + response caching.
 * **Security-first** — WAF + security headers run before any controller logic.
 
+```mermaid
+flowchart LR
+    Client[Client<br/>web / mobile] --> RR[RoadRunner<br/>persistent workers]
+    RR --> LARAVEL[Laravel 12<br/>bootstrap/app.php]
+    LARAVEL --> MW[api middleware<br/>Sanctum Stateful<br/>WAF<br/>SecurityHeaders]
+    MW --> ROUTER[Router<br/>api.php / web.php→auth.php]
+    ROUTER --> CTRL[Controllers<br/>Post / Comment / Profile / Search<br/>Auth]
+    CTRL --> SVC[Services<br/>PostService / CommentService<br/>UserService / SearchService<br/>InteractionService]
+    SVC --> ACT[Actions / DTOs<br/>CreateComment / LikePost / RepostPost]
+    ACT --> MODEL[Models<br/>User MySQL<br/>Post/Comment Mongo<br/>PostMetaData/Like/Repost MySQL]
+    MODEL --> DBM[(MongoDB<br/>posts, comments)]
+    MODEL --> DBS[(MySQL<br/>users, counters)]
+    SVC --> TRANS[Transformers<br/>PostTransformer / CommentTransformer<br/>Cache 5m]
+    TRANS --> JSON[JSON<br/>Http trait {success,data}]
+    JSON --> Client
 ```
-Client → RoadRunner → Laravel (bootstrap/app.php)
-                    → api middleware stack [Sanctum Stateful, WAF, SecurityHeaders]
-                    → Router (routes/api.php, routes/web.php → auth.php)
-                    → Controller → Service / Action → Model → MySQL / MongoDB
-                    → Transformer → JSON (App\Utils\Http trait)
+
+```mermaid
+flowchart TB
+    subgraph Edge
+        C[Clients]
+        RR2[RoadRunner]
+    end
+    subgraph Laravel
+        MW2[Middleware<br/>WAF + SecurityHeaders]
+        API[API v1<br/>auth:sanctum]
+        WEB[Web /auth<br/>session]
+    end
+    subgraph Data
+        MySQL[(MySQL 8)]
+        Mongo[(MongoDB 6)]
+        Redis[(Redis)]
+    end
+    C --> RR2 --> MW2
+    MW2 --> API
+    MW2 --> WEB
+    API --> MySQL
+    API --> Mongo
+    API --> Redis
+    WEB --> MySQL
 ```
 
 ## 2. Technology Stack
@@ -66,6 +100,33 @@ docs/             # This file + API_CONTRACT, SSD, WAF_README, WAF_IMPLEMENTATIO
 
 ## 4. Request Lifecycle
 
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant RR as RoadRunner
+    participant MW as Middleware<br/>Sanctum/WAF/SecurityHeaders
+    participant R as Router
+    participant CT as Controller
+    participant SV as Service/Action
+    participant DB as MySQL / MongoDB
+    participant TF as Transformer
+    C->>RR: HTTP request
+    RR->>MW: reuse worker, no bootstrap
+    MW->>MW: enabled? → hash_equals bypass? → IP → RateLimiter → patterns → limits
+    alt WAF protect & violation
+        MW-->>C: 403 / 429
+    end
+    MW->>R: next(request)
+    R->>CT: dispatch + auth:sanctum
+    CT->>CT: validate + authorize (Policy)
+    CT->>SV: DTO → Service → Action
+    SV->>DB: Model query / write
+    DB-->>SV: result
+    SV->>TF: batch load users/metadata (Cache 5m)
+    TF-->>CT: shaped JSON
+    CT-->>C: Http trait {success, data} / {success:false, code}
+```
+
 1. **RoadRunner** receives HTTP, reuses worker (no bootstrap per request).
 2. `bootstrap/app.php` `withMiddleware` prepends `EnsureFrontendRequestsAreStateful` → `WebApplicationFirewall` → `SecurityHeaders` to `api` group.
 3. **WAF** (`app/Http/Middleware/WebApplicationFirewall.php`):
@@ -79,6 +140,19 @@ docs/             # This file + API_CONTRACT, SSD, WAF_README, WAF_IMPLEMENTATIO
 10. `Http` trait wraps in `{success, message?, data}` or `{success:false, message, code}`.
 
 ## 5. Data Architecture
+
+```mermaid
+erDiagram
+    users ||--o{ post_meta_data : owns
+    users ||--o{ post_likes : likes
+    users ||--o{ post_reposts : reposts
+    post_meta_data ||--|| posts : "logical post_id"
+    posts ||--o{ comments : has
+    comments ||--o{ comments : replies
+    users ||--o{ posts : authors
+```
+
+> Full ERD with columns, indexes and MySQL ↔ Mongo links: see `database/SCHEMA.md` and `docs/database/SCHEMA.md`.
 
 ### 5.1 MySQL (relational)
 
@@ -107,6 +181,101 @@ tags { _id, name } // via TagFactory, hashtag extraction
 No XA transaction across MySQL+Mongo. Strategy: **Mongo first, MySQL second, compensate on failure**. Acceptable for social content (eventual counter drift is tolerable; `PostMetaData` can be rebuilt from Mongo counts if needed).
 
 ## 6. Layering & Patterns
+
+```mermaid
+classDiagram
+    class Controller {
+        <<Http trait>>
+        +success() JsonResponse
+        +error() JsonResponse
+    }
+    class PostController
+    class CommentController
+    class ProfileController
+    class SearchController
+    class PostInteractionController
+    class UtilityController
+    Controller <|-- PostController
+    Controller <|-- CommentController
+    Controller <|-- ProfileController
+    Controller <|-- SearchController
+    Controller <|-- PostInteractionController
+    Controller <|-- UtilityController
+
+    class Service {
+        <<orchestrator>>
+    }
+    class PostService
+    class CommentService
+    class UserService
+    class SearchService
+    class InteractionService
+    Service <|-- PostService
+    Service <|-- CommentService
+    Service <|-- UserService
+    Service <|-- SearchService
+    Service <|-- InteractionService
+
+    class Action {
+        +execute()
+    }
+    class CreateCommentAction
+    class LikePostAction
+    class RepostPostAction
+    Action <|-- CreateCommentAction
+    Action <|-- LikePostAction
+    Action <|-- RepostPostAction
+
+    class Transformer {
+        +transformPosts()
+        +transformCollection()
+    }
+    class PostTransformer
+    class CommentTransformer
+    Transformer <|-- PostTransformer
+    Transformer <|-- CommentTransformer
+
+    class Model {
+        <<Eloquent>>
+    }
+    class User
+    class Post
+    class Comment
+    class PostMetaData
+    class PostLike
+    class PostRepost
+    Model <|-- User
+    Model <|-- Post
+    Model <|-- Comment
+    Model <|-- PostMetaData
+    Model <|-- PostLike
+    Model <|-- PostRepost
+
+    class Policy {
+        +update() bool
+        +delete() bool
+    }
+    class PostPolicy
+    class CommentPolicy
+    Policy <|-- PostPolicy
+    Policy <|-- CommentPolicy
+
+    PostController --> PostService
+    CommentController --> CommentService
+    ProfileController --> UserService
+    SearchController --> SearchService
+    PostInteractionController --> InteractionService
+    PostService --> Post
+    CommentService --> Comment
+    CommentService --> CreateCommentAction
+    InteractionService --> LikePostAction
+    InteractionService --> RepostPostAction
+    PostService --> HashtagTrait
+    PostController --> PostTransformer
+    CommentService --> CommentTransformer
+    PostController --> PostPolicy
+    CommentController --> CommentPolicy
+```
 
 * **Controllers are thin**: validate, authorize, delegate to Service, return `Http::success/error`. Fat logic (e.g. old `CommentController` 454 LoC) was extracted.
 * **Services are orchestrators**: `PostService`, `CommentService`, `InteractionService`, `SearchService`, `UserService`. They own queries, transactions, logging.
@@ -138,6 +307,20 @@ See `docs/WAF_README.md` and `docs/WAF_IMPLEMENTATION.md` for WAF detail. Summar
 PHPUnit 11, `RefreshDatabase`, `Sanctum::actingAs`. Suites: `Auth/*`, `PostTest`, `PostInteractionTest`, `UserProfileTest`, `SearchTest`, `MongoDBTest`, `WafTest`/`WafEdgeCasesTest`. Run: `php artisan test --filter=WafTest`.
 
 ## 10. Deployment
+
+```mermaid
+flowchart TB
+    Dev[Developer] --> GIT[Git push main]
+    GIT --> CI[CI: pint --dirty<br/>php artisan test]
+    CI --> BUILD[Build<br/>composer install --no-dev<br/>rr binary]
+    BUILD --> REG[Container Registry]
+    REG --> PROD[Prod Host<br/>RoadRunner]
+    PROD --> MYSQL[(MySQL Managed)]
+    PROD --> MONGO[(Mongo Atlas / Community)]
+    PROD --> REDIS[(Redis)]
+    PROD --> TLS[TLS Termination<br/>Nginx / ALB]
+    TLS --> Client2[Clients]
+```
 
 * Dev: `composer install && cp .env.example .env && php artisan key:generate && php artisan migrate --seed && ./rr serve` or `php artisan serve`.
 * Prod: `APP_ENV=production APP_DEBUG=false`, managed MySQL/MongoDB/Redis, `WAF_ENABLED=true WAF_MODE=protect`, `./rr serve -c .rr.prod.yaml`, OpCache, TLS termination before RoadRunner.

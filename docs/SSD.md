@@ -1,4 +1,4 @@
-# Software / System Design Document (SSD)
+# Software Design Document (SSD)
 
 > ThreadsApp API — Version 1.0 — 2026-08-25
 
@@ -14,7 +14,7 @@ This document captures requirements, architecture, data design, component design
 
 ### 1.2 Definitions
 
-* **SSD** — Software/System Design Document.
+* **SSD** — Software Design Document.
 * **WAF** — Web Application Firewall (middleware).
 * **Hybrid DB** — MySQL for relational data, MongoDB for documents.
 
@@ -50,32 +50,18 @@ Real-time (WebSockets), media uploads beyond `file_upload` validation, moderatio
 
 ## 3. System Overview
 
-```
-                 ┌─────────────────────────────────────────┐
-                 │  Clients (web/mobile)                   │
-                 └──────────────┬──────────────────────────┘
-                                │ HTTPS
-                 ┌──────────────▼──────────────────────────┐
-                 │  RoadRunner (persistent workers)        │
-                 │  Laravel 12 (bootstrap/app.php)         │
-                 │  ┌──────────────────────────────────┐  │
-                 │  │ api middleware: Sanctum, WAF,    │  │
-                 │  │ SecurityHeaders                  │  │
-                 │  └──────────┬───────────────────────┘  │
-                 │  Router api.php / web.php→auth.php      │
-                 │  Controllers → Services → Actions/DTOs  │
-                 └──────┬──────────────────┬───────────────┘
-                        │                  │
-              ┌─────────▼───────┐  ┌───────▼────────┐
-              │ MySQL 8         │  │ MongoDB 6      │
-              │ users,          │  │ posts,         │
-              │ post_meta_data, │  │ comments,      │
-              │ likes, reposts  │  │ tags           │
-              └─────────────────┘  └────────────────┘
-                        └─────────┬────────┘
-                                  ▼
-                             Redis / array cache
-                             (rate limit, user batch)
+```mermaid
+flowchart TB
+    C[Clients<br/>web / mobile] --> HTTPS
+    HTTPS --> RR[RoadRunner<br/>persistent workers]
+    RR --> LARAVEL[Laravel 12<br/>bootstrap/app.php]
+    LARAVEL --> MW[api middleware<br/>Sanctum Stateful<br/>WAF<br/>SecurityHeaders]
+    MW --> ROUTER[Router<br/>api.php / web.php→auth.php]
+    ROUTER --> CTRL[Controllers → Services → Actions / DTOs]
+    CTRL --> MySQL[(MySQL 8<br/>users, post_meta_data<br/>likes, reposts)]
+    CTRL --> Mongo[(MongoDB 6<br/>posts, comments, tags)]
+    CTRL --> Redis[(Redis / array cache<br/>rate limit, user batch)]
+    MySQL -. logical post_id .-> Mongo
 ```
 
 ## 4. Architecture Decisions (ADRs)
@@ -91,16 +77,59 @@ Real-time (WebSockets), media uploads beyond `file_upload` validation, moderatio
 
 ## 5. Data Design
 
-### 5.1 ERD (logical)
+### 5.1 ERD (logical) — see `database/SCHEMA.md` for full DDL
 
+```mermaid
+erDiagram
+    users ||--o{ post_meta_data : owns
+    users ||--o{ post_likes : likes
+    users ||--o{ post_reposts : reposts
+    post_meta_data ||--|| posts : logical
+    posts ||--o{ comments : has
+    comments ||--o{ comments : replies
+    users ||--o{ posts : authors
+    users ||--o{ comments : authors
+
+    users {
+        bigint id PK
+        string username UK
+        string email UK
+        string password
+        datetime email_verified_at
+    }
+    post_meta_data {
+        bigint id PK
+        varchar post_id FK
+        bigint user_id FK
+        int likes_count
+        int comments_count
+        int reposts_count
+    }
+    post_likes {
+        bigint id PK
+        varchar post_id
+        bigint user_id
+    }
+    post_reposts {
+        bigint id PK
+        varchar post_id
+        bigint user_id
+    }
+    posts {
+        ObjectId _id PK
+        string content
+        string tags
+        string user_id
+    }
+    comments {
+        ObjectId _id PK
+        string post_id
+        string user_id
+        string parent_id
+    }
 ```
-User 1──∞ Post (Mongo, user_id FK logical)
-User 1──∞ Comment (Mongo, user_id, post_id, parent_id)
-Post 1──1 PostMetaData (MySQL, post_id VARCHAR → Post._id)
-User ∞──∞ Post via PostLike (MySQL, UNIQUE post_id+user_id)
-User ∞──∞ Post via PostRepost (MySQL)
-Tag used via Post.tags array (Mongo)
-```
+
+> Full columns, indexes and MySQL ↔ Mongo logical links: `database/SCHEMA.md` (`docs/database/SCHEMA.md` mirror).
 
 ### 5.2 MySQL Schema (key tables)
 
@@ -153,24 +182,185 @@ Denormalized in `post_meta_data` for fast feed hydration. Maintained by Actions;
 
 `PostTransformer::transformPosts` handles `Collection` vs `LengthAwarePaginator`, caches user batches (`md5(userIds)` 300s), fetches metadata/likes/reposts in 3 queries, maps to feed shape.
 
+```mermaid
+classDiagram
+    class User {
+        +id: bigint
+        +username: string
+        +email: string
+        +password: hashed
+        +avatar: string
+        +bio: string
+    }
+    class Post {
+        +_id: ObjectId
+        +content: string
+        +tags: string[]
+        +user_id: int
+    }
+    class Comment {
+        +_id: ObjectId
+        +post_id: string
+        +user_id: int
+        +parent_id: string
+        +content: string
+    }
+    class PostMetaData {
+        +post_id: string
+        +user_id: int
+        +likes_count: int
+        +comments_count: int
+        +reposts_count: int
+    }
+    class PostLike {
+        +post_id: string
+        +user_id: int
+    }
+    class PostRepost {
+        +post_id: string
+        +user_id: int
+    }
+    User "1" --o "0..*" Post : authors
+    User "1" --o "0..*" Comment : authors
+    Post "1" -- "1" PostMetaData : logical
+    Post "1" --o "0..*" Comment : has
+    Comment "1" --o "0..*" Comment : replies
+    User "1" --o "0..*" PostLike : likes
+    User "1" --o "0..*" PostRepost : reposts
+
+    class PostService {
+        +getFeed() Paginator
+        +createPost() Post
+        +deletePost() bool
+    }
+    class CommentService {
+        +getComments()
+        +createComment()
+        +getThread() graphLookup
+    }
+    class InteractionService {
+        +like() / unlike()
+        +repost()
+    }
+    PostService ..> Post : creates
+    CommentService ..> Comment : creates
+    InteractionService ..> PostLike
+    InteractionService ..> PostRepost
+```
+
 ## 7. Sequence Diagrams
 
 ### 7.1 Create Post
 
-```
-Client → POST /api/v1/me/posts {content} [Bearer]
-  → WAF → Auth → PostController@store (validate)
-  → PostService::createPost (filter tags → Mongo Post → MySQL PostMetaData or delete+throw)
-  → PostTransformer (hydrate author/metadata)
-  → 201 {post}
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant WAF as WAF
+    participant PC as PostController
+    participant PS as PostService
+    participant MO as Mongo posts
+    participant MY as MySQL post_meta_data
+    participant TF as PostTransformer
+    C->>WAF: POST /api/v1/me/posts {content} Bearer
+    WAF->>PC: 200 pass (monitor/protect)
+    PC->>PC: validate PostRequest max:5000 + Policy
+    PC->>PS: createPost(content, userId)
+    PS->>PS: filterHashTags()
+    PS->>MO: Post::create{content,tags,user_id}
+    MO-->>PS: _id
+    PS->>MY: PostMetaData::create{post_id:_id, user_id}
+    alt MySQL fail
+        PS->>MO: delete(_id) compensate
+        PS-->>PC: throw → 500
+        PC-->>C: {success:false, code:500}
+    else success
+        PS-->>PC: Post
+        PC->>TF: transformPosts([post]) batch users+metadata
+        TF-->>PC: shaped post
+        PC-->>C: 201 {success:true, data:{post}}
+    end
 ```
 
 ### 7.2 Comment Thread
 
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant CC as CommentController
+    participant CS as CommentService
+    participant MO as Mongo comments
+    participant MY as MySQL users
+    C->>CC: GET /api/v1/comments/{id}/thread Bearer
+    CC->>CS: getThread(id)
+    CS->>MO: aggregate $graphLookup descendants maxDepth 50
+    MO-->>CS: [descendants] sorted asc
+    CS->>MY: User::whereIn(user_ids)
+    MY-->>CS: users keyed
+    CS->>CS: map replying_to + author
+    CS-->>CC: thread[]
+    CC-->>C: 200 {success:true, data:{thread}}
 ```
-Client → GET /api/v1/comments/{id}/thread
-  → CommentService::getThread → Mongo aggregate graphLookup → batch Users → map replying_to
-  → 200 {thread:[…] desc sorted}
+
+### 7.3 Like / Repost Toggle
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant IC as PostInteractionController
+    participant IS as InteractionService
+    participant MY as MySQL likes/reposts
+    participant MD as MySQL post_meta_data
+    C->>IC: POST /api/v1/posts/{id}/like
+    IC->>IS: like(postId, userId)
+    IS->>MY: PostLike::firstOrCreate UNIQUE
+    alt created
+        IS->>MD: increment likes_count
+    else exists
+        IS-->>IC: already liked (idempotent)
+    end
+    IS-->>IC: {liked:true, likes_count}
+    IC-->>C: 200 {data:{liked, likes_count}}
+```
+
+### 7.4 Search
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant SC as SearchController
+    participant SS as SearchService
+    participant MY as MySQL users
+    participant MO as Mongo posts
+    C->>SC: POST /api/v1/search?posts=include {query, page}
+    SC->>SS: search(query, includePosts, page)
+    SS->>SS: sanitize preg_replace
+    SS->>MY: User where username/name LIKE %q% limit 10
+    MY-->>SS: users
+    alt includePosts
+        SS->>MO: Post where content regex /q/i or tags regex
+        MO-->>SS: posts paginated
+        SS->>SS: PostTransformer batch
+    end
+    SS-->>SC: {users, posts?, search_metadata}
+    SC-->>C: 200 {success:true, data:{...}}
+```
+
+### 7.5 WAF Decision
+
+```mermaid
+flowchart TB
+    REQ[Request] --> EN{enabled?}
+    EN -- no --> PASS[→ next]
+    EN -- yes --> BYP{hash_equals<br/>X-WAF-Bypass?}
+    BYP -- yes --> PASS
+    BYP -- no --> IP{IP black/white?}
+    IP -- block --> BLK[403]
+    IP -- pass --> RL{RateLimiter}
+    RL -- 429 --> RLBLK[429 retry_after]
+    RL -- pass --> PAT{SQLi / XSS / traversal / UA<br/>+ size + upload}
+    PAT -- violation & monitor --> LOG[log only] --> PASS
+    PAT -- violation & protect --> BLK2[403 reason?]
+    PAT -- clean --> PASS
 ```
 
 ## 8. Security Design

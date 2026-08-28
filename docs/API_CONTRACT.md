@@ -3,6 +3,26 @@
 > Base URL: `http://localhost:8000` (dev) — all paths below are absolute.
 > Auth unless noted otherwise. Content-Type `application/json`. Pagination via `?page=&per_page=` (clamped `1..∞` and `1..50`).
 
+```mermaid
+flowchart TB
+    subgraph Public
+        WAFTEST[GET|POST /api/v1/waf-test]
+        PING[GET /api/ping-mongodb]
+        HEALTH[GET /api/up]
+        AUTH[POST /auth/register<br/>POST /auth/login<br/>POST /auth/forgot-password]
+    end
+    subgraph Authenticated
+        ME[/api/v1/me/*<br/>profile, posts CRUD, reposts/]
+        USERS[/api/v1/users/{username}<br/>profile/posts/reposts/]
+        FEED[/api/v1/posts<br/>feed & show/]
+        INTER[/api/v1/posts/{id}/like|share|repost|interactions/]
+        COMMENTS[/api/v1/posts/{id}/comments<br/>/api/v1/comments/{id}/.../]
+        SEARCH[POST /api/v1/search]
+    end
+    Client --> Public
+    Client -->|Bearer token| Authenticated
+```
+
 ## 1. Conventions
 
 ### 1.1 Authentication
@@ -12,6 +32,25 @@
 * `GET /api/up` — health (`bootstrap/app.php: health`).
 
 ### 1.2 Envelope
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant MW as Middleware
+    participant CT as Controller
+    participant SV as Service
+    C->>MW: Bearer token / session
+    MW->>MW: Sanctum verify / WAF check
+    alt 401 / 403 / 429
+        MW-->>C: {success:false, message, code}
+    else pass
+        MW->>CT: dispatch
+        CT->>SV: validate + DTO
+        SV-->>CT: data
+        CT-->>C: {success:true, data} / 201 / 204
+    end
+    Note over C,SV: Envelope via App\Utils\Http trait
+```
 
 Success (via `App\Utils\Http::success`):
 ```json
@@ -43,6 +82,23 @@ SecurityHeaders adds: `Strict-Transport-Security`, `X-Frame-Options: SAMEORIGIN`
 WAF may return `403 {message:"Request blocked by Web Application Firewall", reason?, details?}` or `429 {message:"Too many requests", retry_after}`.
 
 ## 2. Endpoints
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant Auth as AuthController
+    participant DB as MySQL users
+    C->>Auth: POST /auth/register {name,username,email,password}
+    Auth->>DB: User::create (hashed)
+    DB-->>Auth: user
+    Auth-->>C: 204 + Sanctum token / session
+    C->>Auth: POST /auth/login {email,password}
+    Auth->>DB: verify hash
+    DB-->>Auth: ok
+    Auth-->>C: 204 + cookie / token
+    C->>Auth: POST /auth/logout
+    Auth-->>C: 204
+```
 
 ### 2.1 Auth — `/auth` (web, session)
 
