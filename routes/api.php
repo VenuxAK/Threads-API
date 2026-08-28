@@ -5,22 +5,12 @@ use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PostInteractionController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\SearchController;
-use Illuminate\Http\Request;
+use App\Http\Controllers\Api\UtilityController;
 use Illuminate\Support\Facades\Route;
-use MongoDB\Driver\ServerApi;
 
 // Public test endpoint for WAF testing
 Route::prefix('v1')->group(function () {
-    Route::match(['GET', 'POST'], '/waf-test', function (\Illuminate\Http\Request $request) {
-        return response()->json([
-            'message' => 'WAF Test Endpoint',
-            'timestamp' => now()->toISOString(),
-            'waf_enabled' => config('waf.enabled', false),
-            'waf_mode' => config('waf.mode', 'monitor'),
-            'request_data' => $request->all(),
-            'has_files' => $request->hasFile('file'),
-        ]);
-    });
+    Route::match(['GET', 'POST'], '/waf-test', [UtilityController::class, 'wafTest']);
 });
 
 Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
@@ -67,26 +57,4 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::post('/search', [SearchController::class, 'search']);
 });
 
-Route::get('/ping-mongodb', function (Request $request) {
-    try {
-        $uri = env('MONGODB_URI');
-        if (!$uri) {
-            return response()->json([
-                'msg' => 'MongoDB URI not configured',
-            ], 500);
-        }
-
-        $apiVersion = new ServerApi(ServerApi::V1);
-        $client = new MongoDB\Client($uri, [], ['serverApi' => $apiVersion]);
-        $client->selectDatabase('admin')->command(['ping' => 1]);
-
-        return response()->json([
-            'msg' => "Pinged your deployment. You successfully connected to MongoDB!\n",
-        ]);
-    } catch (Exception $e) {
-        \Illuminate\Support\Facades\Log::error('MongoDB ping failed', ['error' => $e->getMessage()]);
-        return response()->json([
-            'msg' => 'MongoDB connection failed: ' . $e->getMessage(),
-        ], 500);
-    }
-});
+Route::get('/ping-mongodb', [UtilityController::class, 'pingMongoDb']);

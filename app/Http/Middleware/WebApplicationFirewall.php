@@ -14,7 +14,7 @@ class WebApplicationFirewall
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -94,8 +94,17 @@ class WebApplicationFirewall
         }
 
         $token = $request->header('X-WAF-Bypass');
+        if ($token === null || $token === '') {
+            return false;
+        }
 
-        return $token && in_array($token, $bypassTokens, true);
+        foreach ($bypassTokens as $bypassToken) {
+            if (is_string($bypassToken) && hash_equals($bypassToken, $token)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

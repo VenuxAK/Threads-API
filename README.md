@@ -22,51 +22,74 @@ A high-performance, secure social media API built with Laravel 12, featuring a h
 
 ## 📋 API Endpoints
 
-### **Authentication** (`/api/v1/`)
+> **Note:** All `/api/v1/` routes require a Sanctum token (`Authorization: Bearer <token>`). Authentication endpoints live under `/auth` and use web sessions.
+
+### **Authentication** (`/auth`)
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
-| POST | `/auth/login` | User login | No |
 | POST | `/auth/register` | User registration | No |
+| POST | `/auth/login` | User login | No |
 | POST | `/auth/logout` | User logout | Yes |
 | POST | `/auth/forgot-password` | Request password reset | No |
 | POST | `/auth/reset-password` | Reset password | No |
+| GET | `/auth/verify-email/{id}/{hash}` | Verify email address | Yes (signed URL) |
+| POST | `/auth/email/verification-notification` | Resend verification email | Yes |
 
-### **User Management** (`/api/v1/`)
+### **Profile** (`/api/v1/me`) — Auth Required
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/me/profile` | Get authenticated user profile |
+| GET | `/me/reposts` | Get authenticated user's reposts |
+| GET | `/me/posts` | Get authenticated user's posts |
+| POST | `/me/posts` | Create new post |
+| GET | `/me/posts/{id}` | Get own specific post |
+| PUT/PATCH | `/me/posts/{id}` | Update post |
+| DELETE | `/me/posts/{id}` | Delete post |
+
+### **Users** (`/api/v1/users`) — Auth Required
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/users/{username}` | Get user profile |
+| GET | `/users/{username}/posts` | Get user's posts |
+| GET | `/users/{username}/reposts` | Get user's reposts |
+
+### **Posts** (`/api/v1/posts`) — Auth Required
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/posts` | Get paginated feed |
+| GET | `/posts/{id}` | Get specific post |
+
+### **Post Interactions** (`/api/v1/posts/{id}`) — Auth Required
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/like` | Like a post |
+| DELETE | `/like` | Unlike a post |
+| GET | `/like/check` | Check if authenticated user liked the post |
+| POST | `/share` | Share a post |
+| POST | `/repost` | Repost a post |
+| GET | `/repost/check` | Check if authenticated user reposted the post |
+| GET | `/interactions` | Get post interaction counts |
+
+### **Comments** (`/api/v1`) — Auth Required
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/posts/{id}/comments` | List top-level comments for a post |
+| POST | `/posts/{id}/comments` | Create comment (or reply via `parent_id`) |
+| GET | `/comments/{id}` | Get specific comment |
+| DELETE | `/comments/{id}` | Delete own comment |
+| GET | `/comments/{id}/replies` | Get direct replies to a comment |
+| GET | `/comments/{id}/thread` | Get flat chronological thread under a comment |
+
+### **Search** (`/api/v1`) — Auth Required
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/search` | Search users (and posts with `?posts=include`) |
+
+### **Utility**
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
-| GET | `/me/profile` | Get authenticated user profile | Yes |
-| GET | `/users/{username}` | Get user profile | Yes |
-| GET | `/users/{username}?posts=include` | Get user profile with posts | Yes |
-| GET | `/users/{username}?post={post_id}` | Get user's specific post | Yes |
-
-### **Posts** (`/api/v1/`)
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/posts` | Get all posts (public) | No |
-| GET | `/posts/{id}` | Get specific post | No |
-| GET | `/me/posts` | Get authenticated user's posts | Yes |
-| POST | `/me/posts` | Create new post | Yes |
-| PUT | `/me/posts/{id}` | Update post | Yes |
-| DELETE | `/me/posts/{id}` | Delete post | Yes |
-
-### **Post Interactions** (`/api/v1/posts/{id}/`)
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/like` | Like a post | Yes |
-| DELETE | `/like` | Unlike a post | Yes |
-| POST | `/share` | Share a post | Yes |
-| GET | `/interactions` | Get post interaction counts | Yes |
-
-### **Search** (`/api/v1/`)
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/search` | Search users (and posts with `?posts=include`) | Yes |
-
-### **Utility** (`/api/v1/`)
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/waf-test` | Test WAF functionality | No |
-| GET | `/ping-mongodb` | Test MongoDB connection | No |
+| GET/POST | `/api/v1/waf-test` | Test WAF functionality (returns diagnostics only) | No |
+| GET | `/api/ping-mongodb` | Test MongoDB connection | No |
 
 ## 🛠️ Technology Stack
 
@@ -100,7 +123,6 @@ A high-performance, secure social media API built with Laravel 12, featuring a h
 2. **Install dependencies**
    ```bash
    composer install
-   npm install
    ```
 
 3. **Configure environment**
@@ -392,9 +414,8 @@ WAF_IP_WHITELIST=your_server_ip
 - Rate limiting storage
 
 ### **Database Optimization**
-- MongoDB indexes on frequently queried fields
+- MongoDB indexes on frequently queried fields (`CreateSearchIndexes` command)
 - MySQL indexes on foreign keys
-- Query optimization with Laravel Scout
 - Connection pooling
 
 ### **Application Optimization**
