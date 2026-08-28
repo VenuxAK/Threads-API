@@ -258,7 +258,7 @@ php artisan test --filter=WafTest
 - File upload validation
 - Request size limits
 
-> **Detailed WAF Documentation**: See [WAF_README.md](WAF_README.md) for comprehensive configuration and [WAF_IMPLEMENTATION.md](WAF_IMPLEMENTATION.md) for implementation details.
+> **Detailed WAF Documentation**: See [WAF_README.md](docs/WAF_README.md) for comprehensive configuration and [WAF_IMPLEMENTATION.md](docs/WAF_IMPLEMENTATION.md) for implementation details.
 
 ### **Security Headers**
 - HTTP Strict Transport Security (HSTS)
@@ -438,6 +438,16 @@ WAF_IP_WHITELIST=your_server_ip
 - Update documentation for API changes
 - Use meaningful commit messages
 - Ensure all tests pass before submitting PR
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/ARCHITECTURE.md) | System overview, stack, request lifecycle, data & component design |
+| [API Contract](docs/API_CONTRACT.md) | Full endpoint reference, envelopes, validation, examples |
+| [System Design (SSD)](docs/SSD.md) | Requirements, ADRs, data/sequence design, security & ops |
+| [WAF Guide](docs/WAF_README.md) | WAF configuration & usage |
+| [WAF Implementation](docs/WAF_IMPLEMENTATION.md) | WAF internals & components |
 
 ## 📄 License
 
