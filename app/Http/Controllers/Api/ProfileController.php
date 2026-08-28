@@ -37,11 +37,19 @@ class ProfileController extends Controller
         ]);
     }
 
-    public function show(string $username)
+    public function show(Request $request, string $username)
     {
         $user = $this->userService->getUser($username);
         if (!$user) {
             return $this->error('User not found', 404);
+        }
+
+        if ($request->query('posts') === 'include') {
+            return $this->userPosts($request, $username);
+        }
+
+        if ($request->query('post')) {
+            return $this->userPost($request, $username);
         }
 
         return $this->success([
@@ -69,6 +77,12 @@ class ProfileController extends Controller
             ->latest()
             ->paginate($perPage, ['*'], 'page', $page);
 
+        $transformed = $this->postTransformer->transformPosts($posts);
+        $postsArray = $transformed instanceof \Illuminate\Pagination\LengthAwarePaginator
+            ? $transformed->getCollection()->values()
+            : $transformed;
+        $postsArray = $postsArray->filter(fn ($p) => ! empty($p['content']) && trim((string) $p['content']) !== '' && ($p['author']['username'] ?? '') !== 'deleted')->values();
+
         return $this->success([
             'user' => [
                 'id' => $user->id,
@@ -77,7 +91,7 @@ class ProfileController extends Controller
                 'avatar' => $user->avatar,
                 'bio' => $user->bio,
             ],
-            'posts' => $this->postTransformer->transformPosts($posts),
+            'posts' => $postsArray,
             'pagination' => [
                 'total' => $posts->total(),
                 'per_page' => $posts->perPage(),

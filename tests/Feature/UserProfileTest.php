@@ -132,24 +132,29 @@ class UserProfileTest extends TestCase
                     'bio',
                 ],
                 'posts' => [
-                    'data' => [
-                        '*' => [
-                            'id',
-                            'content',
-                            'tags',
-                            'published_at',
-                            'edited_at',
-                            'interactions',
-                            'author',
-                        ],
+                    '*' => [
+                        'id',
+                        'content',
+                        'tags',
+                        'published_at',
+                        'edited_at',
+                        'interactions',
+                        'author',
                     ],
                 ],
-                'pagination',
+                'pagination' => [
+                    'total',
+                    'per_page',
+                    'current_page',
+                    'last_page',
+                    'from',
+                    'to',
+                ],
             ],
         ]);
 
         $responseData = $response->json();
-        $this->assertGreaterThanOrEqual(3, $responseData['data']['posts']['total']);
+        $this->assertGreaterThanOrEqual(3, $responseData['data']['pagination']['total']);
         $this->assertEquals('Other User', $responseData['data']['user']['name']);
     }
 
@@ -258,7 +263,7 @@ class UserProfileTest extends TestCase
         $this->assertEquals(5, $responseData['data']['pagination']['per_page']);
         $this->assertEquals(1, $responseData['data']['pagination']['current_page']);
         $this->assertGreaterThanOrEqual(1, $responseData['data']['pagination']['last_page']);
-        $this->assertCount(min(5, $responseData['data']['posts']['total']), $responseData['data']['posts']['data']);
+        $this->assertCount(min(5, $responseData['data']['pagination']['total']), $responseData['data']['posts']);
     }
 
     /**
@@ -364,7 +369,7 @@ class UserProfileTest extends TestCase
         $this->assertLessThan(2, $executionTime, "Profile endpoint took {$executionTime} seconds, which is too slow");
 
         $responseData = $response->json();
-        $this->assertCount(20, $responseData['data']['posts']['data']);
+        $this->assertCount(20, $responseData['data']['posts']);
     }
 
     /**

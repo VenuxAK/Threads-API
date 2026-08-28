@@ -27,10 +27,14 @@ class PostController extends Controller
         $page = max($request->get('page', 1), 1);
 
         $posts = $this->postService->getFeed($perPage, $page);
-        $transformedPosts = $this->postTransformer->transformPosts($posts);
+        $transformed = $this->postTransformer->transformPosts($posts);
+        $postsArray = $transformed instanceof \Illuminate\Pagination\LengthAwarePaginator
+            ? $transformed->getCollection()->values()
+            : $transformed;
+        $postsArray = $postsArray->filter(fn ($p) => ! empty($p['content']) && trim((string) $p['content']) !== '' && ($p['author']['username'] ?? '') !== 'deleted')->values();
 
         return $this->success([
-            'posts' => $transformedPosts,
+            'posts' => $postsArray,
             'pagination' => [
                 'total' => $posts->total(),
                 'per_page' => $posts->perPage(),
@@ -48,10 +52,14 @@ class PostController extends Controller
         $page = max($request->get('page', 1), 1);
 
         $posts = $this->postService->getAuthUserPosts(Auth::id(), $perPage, $page);
-        $transformedPosts = $this->postTransformer->transformPosts($posts);
+        $transformed = $this->postTransformer->transformPosts($posts);
+        $postsArray = $transformed instanceof \Illuminate\Pagination\LengthAwarePaginator
+            ? $transformed->getCollection()->values()
+            : $transformed;
+        $postsArray = $postsArray->filter(fn ($p) => ! empty($p['content']) && trim((string) $p['content']) !== '' && ($p['author']['username'] ?? '') !== 'deleted')->values();
 
         return $this->success([
-            'posts' => $transformedPosts,
+            'posts' => $postsArray,
             'pagination' => [
                 'total' => $posts->total(),
                 'per_page' => $posts->perPage(),

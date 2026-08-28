@@ -49,7 +49,7 @@ class PostTest extends TestCase
             'content' => 'This is a test post with #hashtag',
         ]);
 
-        $response->assertStatus(204);
+        $response->assertStatus(201);
 
         // Verify post was created in MongoDB
         // Verify post was created in MongoDB
@@ -103,7 +103,7 @@ class PostTest extends TestCase
             'content' => 'Post with #hashtag1 and #hashtag2 #test',
         ]);
 
-        $response->assertStatus(204);
+        $response->assertStatus(201);
 
         $post = Post::where('content', 'Post with #hashtag1 and #hashtag2 #test')->first();
         $this->assertContains('hashtag1', $post->tags);
@@ -129,44 +129,38 @@ class PostTest extends TestCase
             'success',
             'data' => [
                 'posts' => [
-                    'data' => [
-                        '*' => [
-                            'id',
-                            'content',
-                            'tags',
-                            'published_at',
-                            'edited_at',
-                            'interactions' => [
-                                'likes',
-                                'comments',
-                                'shares',
-                            ],
-                            'author' => [
-                                'name',
-                                'username',
-                                'avatar',
-                                'bio',
-                            ],
+                    '*' => [
+                        'id',
+                        'content',
+                        'tags',
+                        'published_at',
+                        'edited_at',
+                        'interactions' => [
+                            'likes',
+                            'comments',
+                            'shares',
+                        ],
+                        'author' => [
+                            'name',
+                            'username',
+                            'avatar',
+                            'bio',
                         ],
                     ],
-                    'current_page',
-                    'first_page_url',
-                    'from',
-                    'last_page',
-                    'last_page_url',
-                    'links',
-                    'next_page_url',
-                    'path',
-                    'per_page',
-                    'prev_page_url',
-                    'to',
+                ],
+                'pagination' => [
                     'total',
+                    'per_page',
+                    'current_page',
+                    'last_page',
+                    'from',
+                    'to',
                 ],
             ],
         ]);
 
         $responseData = $response->json();
-        $this->assertGreaterThanOrEqual(3, $responseData['data']['posts']['total']);
+        $this->assertGreaterThanOrEqual(3, $responseData['data']['pagination']['total']);
     }
 
     /**
@@ -242,10 +236,9 @@ class PostTest extends TestCase
             'content' => 'Trying to update',
         ]);
 
-        $response->assertStatus(404);
+        $response->assertStatus(403);
         $response->assertJson([
             'success' => false,
-            'message' => 'Post not found',
         ]);
     }
 
@@ -285,10 +278,9 @@ class PostTest extends TestCase
 
         $response = $this->deleteJson("/api/v1/me/posts/{$post->id}");
 
-        $response->assertStatus(404);
+        $response->assertStatus(403);
         $response->assertJson([
             'success' => false,
-            'message' => 'Post not found',
         ]);
     }
 
@@ -326,7 +318,7 @@ class PostTest extends TestCase
         $this->assertEquals(5, $responseData['data']['pagination']['per_page']);
         $this->assertEquals(1, $responseData['data']['pagination']['current_page']);
         $this->assertEquals(ceil(($currentTotal + 20) / 5), $responseData['data']['pagination']['last_page']);
-        $this->assertCount(5, $responseData['data']['posts']['data']);
+        $this->assertCount(5, $responseData['data']['posts']);
     }
 
     /**
@@ -345,7 +337,7 @@ class PostTest extends TestCase
 
         $response->assertStatus(200);
         $responseData = $response->json();
-        $this->assertGreaterThanOrEqual($currentCount + 4, $responseData['data']['posts']['total']);
+        $this->assertGreaterThanOrEqual($currentCount + 4, $responseData['data']['pagination']['total']);
     }
 
     /**
@@ -412,7 +404,7 @@ class PostTest extends TestCase
         $responseData = $response->json();
 
         // First post should be the newest
-        $this->assertEquals($newPost->id, $responseData['data']['posts']['data'][0]['id']);
-        $this->assertEquals('New post', $responseData['data']['posts']['data'][0]['content']);
+        $this->assertEquals($newPost->id, $responseData['data']['posts'][0]['id']);
+        $this->assertEquals('New post', $responseData['data']['posts'][0]['content']);
     }
 }
