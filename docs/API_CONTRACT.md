@@ -1,271 +1,145 @@
-# API Contract
+# API Contract: GraphQL & Authentication
 
-> Base URL: `http://localhost:8000` (dev) — all paths below are absolute.
-> Auth unless noted otherwise. Content-Type `application/json`. Pagination via `?page=&per_page=` (clamped `1..∞` and `1..50`).
+> Base URL: `http://localhost:8000` (development)
+> Data Protocol: **GraphQL** at `POST /graphql` | Interactive Explorer: `GET /graphiql`
+> Authentication Protocol: HTTP Session / Sanctum Cookie at `/auth/*`
 
 ```mermaid
 flowchart TB
-    subgraph Public
-        WAFTEST[GET|POST /api/v1/waf-test]
-        PING[GET /api/ping-mongodb]
-        HEALTH[GET /api/up]
-        AUTH[POST /auth/register<br/>POST /auth/login<br/>POST /auth/forgot-password]
+    subgraph Public HTTP
+        AUTH_REG[POST /auth/register]
+        AUTH_LOGIN[POST /auth/login]
+        AUTH_FORGOT[POST /auth/forgot-password]
+        GRAPHIQL[GET /graphiql (Dev Explorer)]
+        HEALTH[GET /up]
     end
-    subgraph Authenticated
-        ME[/api/v1/me/*<br/>profile, posts CRUD, reposts/]
-        USERS[/api/v1/users/{username}<br/>profile/posts/reposts/]
-        FEED[/api/v1/posts<br/>feed & show/]
-        INTER[/api/v1/posts/{id}/like|share|repost|interactions/]
-        COMMENTS[/api/v1/posts/{id}/comments<br/>/api/v1/comments/{id}/.../]
-        SEARCH[POST /api/v1/search]
+    subgraph GraphQL Unified Endpoint [POST /graphql]
+        direction TB
+        Q_FEED[query: feed, post, myPosts, userPosts, myLikedPosts]
+        Q_USER[query: me, user]
+        Q_COMM[query: postComments, commentThread, commentReplies]
+        Q_SEARCH[query: search]
+        M_POST[mutation: createPost, updatePost, deletePost]
+        M_INTER[mutation: likePost, unlikePost, repost]
+        M_COMM[mutation: createComment, deleteComment]
+        M_PROF[mutation: updateProfile]
     end
-    Client --> Public
-    Client -->|Bearer token| Authenticated
+    Client[Nuxt 4 Client] --> Public HTTP
+    Client -->|Session Cookie + CSRF| GraphQL Unified Endpoint
 ```
+
+---
 
 ## 1. Conventions
 
-### 1.1 Authentication
+### 1.1 Authentication & Session Lifecycle
+- **Session Bootstrap**: Handled via standard RESTful endpoints (`/auth/login`, `/auth/register`, `/auth/logout`, `/auth/forgot-password`, `/auth/reset-password`).
+- **CSRF Protection**: The client fetches `/sanctum/csrf-cookie` prior to login. Subsequent requests pass `X-XSRF-TOKEN` and `credentials: 'include'`.
+- **GraphQL Authorization**: Handled via Lighthouse's `@guard` directive on each protected query and mutation. If unauthenticated, Lighthouse returns a standard GraphQL error with code `401 / Unauthenticated`.
 
-* `/auth/*` — **session** (web guard, Breeze). `guest` for register/login/forgot, `auth`+`signed` for verify, `auth` for logout/verification-notification.
-* `/api/v1/*` — **Sanctum Bearer** (`Authorization: Bearer <token>`) except `GET|POST /api/v1/waf-test` and `GET /api/ping-mongodb` which are public.
-* `GET /api/up` — health (`bootstrap/app.php: health`).
+### 1.2 GraphQL Request & Response Envelope
 
-### 1.2 Envelope
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant MW as Middleware
-    participant CT as Controller
-    participant SV as Service
-    C->>MW: Bearer token / session
-    MW->>MW: Sanctum verify / WAF check
-    alt 401 / 403 / 429
-        MW-->>C: {success:false, message, code}
-    else pass
-        MW->>CT: dispatch
-        CT->>SV: validate + DTO
-        SV-->>CT: data
-        CT-->>C: {success:true, data} / 201 / 204
-    end
-    Note over C,SV: Envelope via App\Utils\Http trait
-```
-
-Success (via `App\Utils\Http::success`):
-```json
-{ "success": true, "message": "…", "data": { } }
-```
-`message` omitted when `null`. `201` for creates, `204` no-content for updates/deletes.
-
-Error:
-```json
-{ "success": false, "message": "Not found", "code": 404 }
-```
-Validation errors use Laravel default `422` with `errors`/`message`.
-
-Paginated helpers return:
+#### Request (`POST /graphql`):
 ```json
 {
-  "success": true,
-  "data": {
-    "posts": [ /* transformed */ ],
-    "pagination": { "total": 100, "per_page": 15, "current_page": 1, "last_page": 7, "from": 1, "to": 15 }
-  }
+  "query": "query GetFeed($page: Int) { feed(page: $page) { data { id content } } }",
+  "variables": { "page": 1 }
 }
 ```
-Some services paginate via `LengthAwarePaginator` and unwrap `posts` similarly.
 
-### 1.3 Common Headers
-
-SecurityHeaders adds: `Strict-Transport-Security`, `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, `Cache-Control: no-store …` for `api/*`, `Content-Security-Policy` in production.
-WAF may return `403 {message:"Request blocked by Web Application Firewall", reason?, details?}` or `429 {message:"Too many requests", retry_after}`.
-
-## 2. Endpoints
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant Auth as AuthController
-    participant DB as MySQL users
-    C->>Auth: POST /auth/register {name,username,email,password}
-    Auth->>DB: User::create (hashed)
-    DB-->>Auth: user
-    Auth-->>C: 204 + Sanctum token / session
-    C->>Auth: POST /auth/login {email,password}
-    Auth->>DB: verify hash
-    DB-->>Auth: ok
-    Auth-->>C: 204 + cookie / token
-    C->>Auth: POST /auth/logout
-    Auth-->>C: 204
-```
-
-### 2.1 Auth — `/auth` (web, session)
-
-| Method | Path | Guard | Body | Success |
-|--------|------|-------|------|---------|
-| POST | `/auth/register` | guest | `{name, username, email, password, password_confirmation}` | 204 (RegisteredUserController) |
-| POST | `/auth/login` | guest | `{email, password}` | 204 + session cookie (LoginRequest) |
-| POST | `/auth/logout` | auth | — | 204 |
-| POST | `/auth/forgot-password` | guest | `{email}` | 200 (PasswordResetLinkController) |
-| POST | `/auth/reset-password` | guest | `{token, email, password, password_confirmation}` | 200 |
-| GET | `/auth/verify-email/{id}/{hash}` | auth,signed,throttle:6,1 | — | redirect/signed verify |
-| POST | `/auth/email/verification-notification` | auth,throttle:6,1 | — | 202 |
-
-Validation: `RegisteredUserRequest` enforces unique `username`/`email`, password rules; `LoginRequest` throttles and `authenticate()`.
-
-### 2.2 Utility — public
-
-| Method | Path | Auth | Response |
-|--------|------|------|----------|
-| GET\|POST | `/api/v1/waf-test` | no | `200 {message:"WAF Test Endpoint", timestamp, waf_enabled, waf_mode}` — used by `WafTest` as probe; never reflects request data |
-| GET | `/api/ping-mongodb` | no | `200 {msg:"Pinged your deployment…"}` or `500 {msg:"MongoDB connection failed"}` / `500 {msg:"MongoDB is not configured"}` — generic message, details logged |
-
-### 2.3 Profile — `/api/v1/me` (auth)
-
-| Method | Path | Controller | Notes |
-|--------|------|------------|-------|
-| GET | `/me/profile` | `ProfileController@myProfile` → `UserService::getAuthUser` | `{id, name, username, email, avatar, bio, email_verified}` |
-| GET | `/me/reposts` | `myReposts` → `UserService::getAuthUserReposts` | Paginated reposted posts (preserves repost order via `PostService::getRepostedPosts`) |
-| GET | `/me/posts` | `PostController@myPosts` | Own posts, `per_page/page` |
-| POST | `/me/posts` | `PostController@store` | `PostRequest {content: string max:5000}` → 201 `{post}` |
-| GET | `/me/posts/{id}` | `myPost` | Own post by id or 404 |
-| PUT\|PATCH | `/me/posts/{id}` | `update` | `PostPolicy@update` + `{content?: string max:5000}` → 204 |
-| DELETE | `/me/posts/{id}` | `destroy` | `PostPolicy@delete` → 204 |
-
-### 2.4 Users — `/api/v1/users` (auth)
-
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/users/{username}` | `ProfileController@show` — user + optional posts stream |
-| GET | `/users/{username}/posts` | `userPosts` — paginated posts for username |
-| GET | `/users/{username}/reposts` | `userReposts` — paginated reposts for userId lookup |
-
-### 2.5 Feed — `/api/v1/posts` (auth)
-
-| Method | Path | Query | Response |
-|--------|------|-------|----------|
-| GET | `/posts` | `per_page` (default 15, max 50), `page` | `PostService::getFeed` → paginated `PostTransformer::transformPosts` |
-| GET | `/posts/{post}` | — | `PostService::getPost` or 404 |
-
-Transformed post shape (via `PostTransformer`):
+#### Success Response:
 ```json
 {
-  "id": "ObjectId",
-  "content": "hello #world",
-  "tags": ["world"],
-  "created_at": "2 hours ago",
-  "author": { "id": 1, "name": "…", "username": "…", "avatar": "…", "bio": "…" },
-  "interactions": { "likes_count": 3, "comments_count": 1, "shares_count": 0, "reposts_count": 0, "liked": true, "reposted": false },
-  "metadata": { "likes_count": 3 }
-}
-```
-Batch-loaded users (cached 5m), metadata (`post_meta_data`), liked/reposted flags for `Auth::id()`.
-
-### 2.6 Interactions — `/api/v1/posts/{post}/*` (auth)
-
-| Method | Path | Action | Body | Response |
-|--------|------|--------|------|----------|
-| POST | `/like` | `PostInteractionController@like` → `LikePostAction` | — | `{liked:true, likes_count}` |
-| DELETE | `/like` | `unlike` | — | `{liked:false, likes_count}` |
-| GET | `/like/check` | `checkLike` | — | `{liked:bool, likes_count:int}` |
-| POST | `/share` | `share` | — | `{shares_count}` |
-| POST | `/repost` | `repost` → `RepostPostAction` | — | `{reposted:true, reposts_count}` |
-| GET | `/repost/check` | `checkRepost` | — | `{reposted:bool, reposts_count}` |
-| GET | `/interactions` | `interactions` | — | `{likes_count, comments_count, shares_count, reposts_count, liked, reposted}` |
-
-Idempotent toggles: like/repost `UNIQUE(post_id,user_id)`.
-
-### 2.7 Comments — `/api/v1` (auth)
-
-| Method | Path | Controller | Validation | Response |
-|--------|------|------------|------------|----------|
-| GET | `/posts/{id}/comments` | `CommentController@index` → `CommentService::getComments` | — | `{comments:[{id, content, post_id, parent_id, created_at, reply_count, author}]}` 404 if post missing |
-| POST | `/posts/{id}/comments` | `store` → `CreateCommentAction` | `{content: required string max:500, parent_id: nullable string}` — parent must exist and `post_id` matches | `201 {comment}`; 404 post/parent, 400 parent-post mismatch |
-| GET | `/comments/{id}` | `show` | — | `{comment}` or 404 |
-| DELETE | `/comments/{id}` | `destroy` | owner check `user_id === Auth::id()` else 403 | `200 {message:"Comment deleted successfully"}` + decrements `post_meta_data.comments_count` |
-| GET | `/comments/{id}/replies` | `replies` | — | `{replies:[…]}` 404 if comment missing |
-| GET | `/comments/{id}/thread` | `thread` | — | `200 {thread:[…]}` flat chronological descendants via `$graphLookup` (maxDepth 50), each with `replying_to:{username?}` |
-
-Comment shape: `{id, content, post_id, parent_id, created_at:"… ago", reply_count, replying_to, author:{id,name,username,avatar}}`.
-
-### 2.8 Search — `/api/v1/search` (auth)
-
-`POST /search` → `SearchController@search` → `SearchService::search`
-
-Body:
-```json
-{ "query": "string required", "page": 1, "per_page": 20 }
-```
-Query param `?posts=include` toggles post search.
-
-Behaviour:
-* `query` sanitized `preg_replace('/[^a-zA-Z0-9\s#]/','',…)`.
-* Always searches `users` (`username LIKE %q% OR name LIKE`) limit 10 → `users:[{id,name,username,avatar,bio}]`.
-* If `?posts=include`: searches `posts` (`content` regex `/q/i` + `tags` regex, handles `#tag` prefix), paginated `skip/limit`, transformed via `PostTransformer` → `posts`.
-* Returns:
-```json
-{
-  "success": true,
   "data": {
-    "users": […],
-    "posts": […],                // only if ?posts=include
-    "search_metadata": { "query": "clean", "total_users": 2, "page":1, "per_page":20 }
+    "feed": {
+      "data": [
+        { "id": "6aa152b2c4182a742a049f12", "content": "Hello Threads!" }
+      ],
+      "pagination": {
+        "total": 42,
+        "per_page": 15,
+        "current_page": 1,
+        "last_page": 3,
+        "has_more": true
+      }
+    }
   }
 }
 ```
 
-## 3. Validation Summary
-
-* `PostRequest`: `content required|string|max:5000`
-* `Comment store`: `content required|string|max:500` + `parent_id nullable|string`
-* `RegisteredUserRequest`: `name|string|max:255`, `username|string|max:255|unique`, `email|email|unique`, `password|confirmed|min:8`
-* `LoginRequest`: `email|email`, `password|string`
-* Search: `query required|string`
-
-## 4. Error Catalog
-
-| Code | When |
-|------|------|
-| 400 | Parent comment does not belong to post |
-| 401 | Missing/invalid Sanctum token on `/api/v1/*` |
-| 403 | WAF block, Policy `cannot update/delete`, comment not owned |
-| 404 | Post/comment/user not found |
-| 422 | Validation fail |
-| 429 | WAF rate limit (`retry_after` seconds) |
-| 500 | Unexpected (MySQL/Mongo failure, logged, generic message) |
-
-## 5. Versioning
-
-Prefix `v1` is explicit in routes. No `Accept` header versioning. Breaking changes require `v2` prefix.
-
-## 6. Examples
-
-Create post:
-```bash
-curl -X POST http://localhost:8000/api/v1/me/posts \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"content":"hello #world"}'
-# 201 {success:true, data:{post:{id, content, tags:["world"], …}}}
+#### Error Response:
+```json
+{
+  "errors": [
+    {
+      "message": "Unauthenticated.",
+      "locations": [{ "line": 1, "column": 3 }],
+      "path": ["feed"],
+      "extensions": {
+        "category": "authentication"
+      }
+    }
+  ]
+}
 ```
 
-Create reply:
-```bash
-curl -X POST http://localhost:8000/api/v1/posts/$POST_ID/comments \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"content":"nice!", "parent_id":"<comment_id>"}'
-```
+---
 
-Search:
-```bash
-curl -X POST "http://localhost:8000/api/v1/search?posts=include" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"query":"world"}'
-```
+## 2. Authentication Endpoints (`/auth`)
 
-## 7. Open Contract Notes
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/auth/register` | Register new user account | No (Guest) |
+| `POST` | `/auth/login` | Authenticate and set session cookie | No (Guest) |
+| `POST` | `/auth/logout` | Invalidate active session cookie | Yes |
+| `POST` | `/auth/forgot-password` | Send password reset link | No |
+| `POST` | `/auth/reset-password` | Reset password using token | No |
+| `GET` | `/auth/verify-email/{id}/{hash}` | Verify email address | Yes (Signed URL) |
+| `POST` | `/auth/email/verification-notification` | Resend verification email | Yes |
 
-* All timestamps returned as `diffForHumans` in transformers (e.g. `2 hours ago`); raw `created_at` available on models.
-* `tags` are derived via `HashtagTrait::filterHashTags` on write (not indexed free-text).
-* `post_meta_data.post_id` is logical FK to Mongo `_id` (string comparison), not DB-enforced.
+---
 
+## 3. GraphQL Operations (`POST /graphql`)
+
+### 3.1 Queries
+
+| Operation | Arguments | Return Type | Description |
+| :--- | :--- | :--- | :--- |
+| `me` | None | `User` | Current authenticated user profile |
+| `user` | `username: String!` | `User` | Public user profile by handle |
+| `feed` | `page: Int, perPage: Int` | `PostPaginator!` | Paginated global posts feed |
+| `post` | `id: ID!` | `Post` | Retrieve single post by ID |
+| `myPosts` | `page: Int, perPage: Int` | `PostPaginator!` | Posts authored by active user |
+| `myReposts` | `page: Int, perPage: Int` | `PostPaginator!` | Posts reposted by active user |
+| `userPosts` | `username: String!, page: Int, perPage: Int` | `PostPaginator!` | Posts authored by a specific user |
+| `userReposts`| `username: String!, page: Int, perPage: Int` | `PostPaginator!` | Posts reposted by a specific user |
+| `myLikedPosts` | `page: Int, perPage: Int` | `PostPaginator!` | Posts liked by the active user |
+| `postComments` | `postId: ID!` | `[Comment!]!` | Top-level comments for a post |
+| `commentThread`| `id: ID!` | `[Comment!]!` | Flat chronological tree via `$graphLookup` |
+| `commentReplies`| `id: ID!` | `[Comment!]!` | Direct replies to a comment |
+| `search` | `keyword: String!, includePosts: Boolean, page: Int, perPage: Int` | `SearchResult!` | Search users and MongoDB posts |
+
+### 3.2 Mutations
+
+| Operation | Arguments | Return Type | Description |
+| :--- | :--- | :--- | :--- |
+| `createPost` | `content: String!` | `Post!` | Create and publish thread with hashtag extraction |
+| `updatePost` | `id: ID!, content: String!` | `Post!` | Update post content (owner only) |
+| `deletePost` | `id: ID!` | `Boolean!` | Delete post and MySQL metadata (owner only) |
+| `likePost` | `postId: ID!` | `InteractionResult!` | Toggle like on a post |
+| `unlikePost` | `postId: ID!` | `InteractionResult!` | Explicitly unlike a post |
+| `repost` | `postId: ID!` | `InteractionResult!` | Toggle repost on a post |
+| `createComment`| `postId: ID!, content: String!, parentId: ID` | `Comment!` | Create root comment or nested reply |
+| `deleteComment`| `id: ID!` | `Boolean!` | Delete comment (owner only) |
+| `updateProfile`| `name: String, bio: String, avatar: String` | `User!` | Update profile details for active user |
+
+---
+
+## 4. Security Controls
+
+1. **Query Depth Limiting**: Lighthouse strictly limits query nesting to a maximum depth of **8** (configured in `config/lighthouse.php`).
+2. **Query Complexity Limiting**: Complexity scores cannot exceed **200** per operation.
+3. **Web Application Firewall (WAF)**:
+   - Rate limiting on `POST /graphql` enforced at **120 requests/minute**.
+   - Input payloads and variables are scanned for injection patterns.
+   - Raw query AST syntax is exempted from false-positive keyword matching.

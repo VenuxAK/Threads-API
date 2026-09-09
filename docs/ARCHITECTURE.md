@@ -1,334 +1,148 @@
 # Architecture
 
-> ThreadsApp API — Laravel 12 + Hybrid MySQL/MongoDB + RoadRunner
+> ThreadsApp API — Laravel 12 + Nuwave Lighthouse (GraphQL) + Hybrid MySQL/MongoDB + RoadRunner
 
 ## 1. Overview
 
-ThreadsApp is a Threads-like social API. The design optimises for:
+ThreadsApp is a high-performance, full-stack social media application modeled after Meta's Instagram Threads. The backend is built to balance massive write workloads with strong relational guarantees:
 
-* **Write-heavy feeds** — posts/comments stored in MongoDB for horizontal scale and schema flexibility.
-* **Relational integrity** — users, likes, reposts, counters stored in MySQL where transactions/joins matter.
-* **Low latency** — RoadRunner (persistent PHP workers) + Redis + response caching.
-* **Security-first** — WAF + security headers run before any controller logic.
+- **Write-heavy feeds**: Stored in **MongoDB** for schema flexibility, horizontal scalability, and deep hierarchical comment graph lookups (`$graphLookup`).
+- **Relational integrity**: Stored in **MySQL** for transactional safety, identity management, and atomic counter caches (`post_meta_data`, `post_likes`, `post_reposts`).
+- **GraphQL Protocol**: Single, unified `POST /graphql` endpoint powered by **Nuwave Lighthouse**, eliminating over-fetching and under-fetching.
+- **Low latency**: **RoadRunner** persistent worker processes via Laravel Octane, avoiding framework bootstrap overhead on each request.
+- **Security-first**: Integrated Web Application Firewall (WAF) and strict GraphQL query depth/complexity limiters.
 
 ```mermaid
 flowchart LR
-    Client[Client<br/>web / mobile] --> RR[RoadRunner<br/>persistent workers]
-    RR --> LARAVEL[Laravel 12<br/>bootstrap/app.php]
-    LARAVEL --> MW[api middleware<br/>Sanctum Stateful<br/>WAF<br/>SecurityHeaders]
-    MW --> ROUTER[Router<br/>api.php / web.php→auth.php]
-    ROUTER --> CTRL[Controllers<br/>Post / Comment / Profile / Search<br/>Auth]
-    CTRL --> SVC[Services<br/>PostService / CommentService<br/>UserService / SearchService<br/>InteractionService]
-    SVC --> ACT[Actions / DTOs<br/>CreateComment / LikePost / RepostPost]
-    ACT --> MODEL[Models<br/>User MySQL<br/>Post/Comment Mongo<br/>PostMetaData/Like/Repost MySQL]
-    MODEL --> DBM[(MongoDB<br/>posts, comments)]
-    MODEL --> DBS[(MySQL<br/>users, counters)]
-    SVC --> TRANS[Transformers<br/>PostTransformer / CommentTransformer<br/>Cache 5m]
-    TRANS --> JSON[JSON<br/>Http trait {success,data}]
+    Client[Nuxt 4 SPA] --> RR[RoadRunner<br/>persistent workers]
+    RR --> MW[Middleware Stack<br/>Sanctum Stateful<br/>WAF Rate Limiting<br/>SecurityHeaders]
+    MW --> GQL[Nuwave Lighthouse<br/>GraphQL Engine]
+    GQL --> RES[GraphQL Resolvers<br/>App/GraphQL/Queries<br/>App/GraphQL/Mutations]
+    RES --> SVC[Services & Actions<br/>PostService / UserService<br/>LikePost / RepostPost]
+    SVC --> DBM[(MongoDB 6<br/>posts, comments)]
+    SVC --> DBS[(MySQL 8<br/>users, metadata, likes)]
+    RES --> BL[Batch Loaders<br/>PostTransformer<br/>Cache 5m]
+    BL --> JSON[JSON Response<br/>data & errors]
     JSON --> Client
 ```
 
 ```mermaid
 flowchart TB
-    subgraph Edge
-        C[Clients]
-        RR2[RoadRunner]
+    subgraph Client Layer
+        SPA[Nuxt 4 SPA Client]
+        GIQL[GraphiQL IDE Explorer]
     end
-    subgraph Laravel
-        MW2[Middleware<br/>WAF + SecurityHeaders]
-        API[API v1<br/>auth:sanctum]
-        WEB[Web /auth<br/>session]
+    subgraph Server Runtime
+        RR2[RoadRunner Persistent Workers]
+        MW2[WAF & Security Headers]
+        AUTH_RT[Auth Routes /auth/*]
+        GQL_RT[GraphQL Endpoint /graphql]
     end
-    subgraph Data
-        MySQL[(MySQL 8)]
-        Mongo[(MongoDB 6)]
-        Redis[(Redis)]
+    subgraph Hybrid Storage Layer
+        MySQL[(MySQL 8<br/>Users, Tokens, Likes, Metadata)]
+        Mongo[(MongoDB 6<br/>Posts, Comments, Hashtags)]
+        Cache[(Redis / Array Cache)]
     end
-    C --> RR2 --> MW2
-    MW2 --> API
-    MW2 --> WEB
-    API --> MySQL
-    API --> Mongo
-    API --> Redis
-    WEB --> MySQL
+    SPA --> RR2
+    GIQL --> RR2
+    RR2 --> MW2
+    MW2 --> AUTH_RT
+    MW2 --> GQL_RT
+    AUTH_RT --> MySQL
+    GQL_RT --> MySQL
+    GQL_RT --> Mongo
+    GQL_RT --> Cache
 ```
+
+---
 
 ## 2. Technology Stack
 
 | Layer | Choice | Reason |
-|-------|--------|--------|
-| Framework | Laravel 12, PHP 8.3 | Mature ecosystem, Sanctum, Policies |
-| App server | RoadRunner (`spiral/roadrunner-http`) + Octane | Persistent workers, ~3× throughput vs php-fpm |
-| Auth | Laravel Sanctum (SPA stateful + Bearer tokens) | Simple token auth for `/api/v1/*`, session for `/auth/*` |
-| Primary DB | MySQL 8 (users, `post_meta_data`, `post_likes`, `post_reposts`, tokens, jobs, cache) | FKs, counters, joins |
-| Document DB | MongoDB 6 via `mongodb/laravel-mongodb` (`posts`, `comments`, `tags`) | Scale for feed, flexible tags, `$graphLookup` for threads |
-| Cache/Queue | Redis 7 (optional, `CACHE_STORE=array` in tests) | Rate-limit, user batch cache |
-| Tooling | Pint, PHPUnit 11, Clockwork, Breeze (auth scaffolding) |  |
+| :--- | :--- | :--- |
+| **Framework** | Laravel 12 (PHP 8.3) | Mature ecosystem, Sanctum authentication, robust dependency injection. |
+| **Application Server** | RoadRunner (`spiral/roadrunner-http`) + Octane | High-concurrency persistent workers (~3x throughput vs standard PHP-FPM). |
+| **GraphQL Engine** | Nuwave Lighthouse (`^6.70`) | Directive-driven schema (`@guard`), AST caching, depth/complexity security limits. |
+| **Developer Tooling** | Laravel GraphiQL (`mll-lab/laravel-graphiql`) | Interactive schema explorer and documentation viewer at `/graphiql`. |
+| **Relational DB** | MySQL 8 | Foreign keys, transactional integrity, and atomic counter updates. |
+| **Document DB** | MongoDB 6 via `mongodb/laravel-mongodb` | Scalable post feed storage and recursive comment graph traversal. |
+| **Security** | Custom WAF + SecurityHeaders | Rate limiting, SQLi/XSS pattern defense, HSTS, CSP headers. |
+
+---
 
 ## 3. Project Structure
 
 ```
 app/
-  Actions/        # Single-purpose write operations (CreateComment, LikePost, RepostPost)
-  Console/Commands # WafManageCommand, CreateSearchIndexes
-  DTOs/           # PostData, CommentData, InteractionResult — typed input between layers
+  Actions/              # Atomic write operations (LikePostAction, RepostPostAction, CreateCommentAction)
+  Console/Commands/     # WafManageCommand, CreateSearchIndexes
+  DTOs/                 # Typed parameter containers (CommentData, InteractionResult)
+  GraphQL/
+    Mutations/          # GraphQL mutation resolvers (PostMutation, InteractionMutation, CommentMutation, ProfileMutation)
+    Queries/            # GraphQL query resolvers (FeedQuery, PostQuery, UserQuery, CommentThreadQuery, etc.)
   Http/
-    Controllers/Api    # Post, Comment, Profile, Search, PostInteraction, Utility
-    Controllers/Auth   # Breeze session auth (register/login/logout/verify)
-    Middleware/        # WebApplicationFirewall, SecurityHeaders, EnsureEmailIsVerified
-    Requests/          # FormRequest validation (PostRequest, RegisteredUserRequest…)
-    Resources/         # PostResource (kept, primary transform is Transformers/)
-  Models/         # User (MySQL), Post/Comment (Mongo), PostMetaData/Like/Repost/Tag (MySQL)
-  Policies/       # PostPolicy, CommentPolicy — authorize update/delete
-  Providers/      # WafServiceProvider, AppServiceProvider
-  Services/       # PostService, CommentService, InteractionService, SearchService, UserService
-  Transformers/   # PostTransformer, CommentTransformer — batch hydration + caching
-  Utils/          # Http trait (success/error helpers), HashtagTrait, RegisteredUser
-bootstrap/app.php # Route + middleware registration (api prepend stack)
-config/waf.php    # Single source of WAF rules (see docs/WAF_*.md)
+    Controllers/Auth/   # Session auth endpoints (Login, Register, Logout, Password Reset)
+    Middleware/         # WebApplicationFirewall, SecurityHeaders
+  Models/               # User (MySQL), Post/Comment (MongoDB), PostMetaData/Like/Repost (MySQL)
+  Policies/             # PostPolicy, CommentPolicy
+  Services/             # PostService, CommentService, UserService, SearchService
+  Transformers/         # PostTransformer, CommentTransformer (batch hydration & cache)
+config/
+  lighthouse.php        # GraphQL guards, schema cache, and depth/complexity security limits
+  waf.php               # WAF patterns, IP blacklists, and endpoint rate limits
+graphql/
+  schema.graphql        # Authoritative GraphQL schema definition
 routes/
-  api.php         # /api/v1/* (auth:sanctum) + public /api/ping-mongodb, /api/v1/waf-test
-  web.php → auth.php # /auth/* session routes (register/login/verify)
-  console.php
-database/
-  migrations/     # users, cache, jobs, personal_access_tokens, post_meta_data, likes, reposts
-  factories/      # User, Post, PostMetaData, Tag
-  seeders/        # UserSeeder, PostSeeder, PostMetaDataSeeder
-tests/Feature/    # Auth, Post, PostInteraction, Search, Waf, MongoDB, UserProfile
-docs/             # This file + API_CONTRACT, SSD, WAF_README, WAF_IMPLEMENTATION
+  auth.php              # Session authentication routes (/auth/*)
+  web.php               # Web routing bootstrap
+docs/
+  API_CONTRACT.md       # GraphQL operations and authentication specification
+  ARCHITECTURE.md       # System architecture and data flow (this file)
+  GRAPHQL.md            # GraphQL developer guide and learning handbook
+  SSD.md                # System sequence diagrams
+  WAF_*.md              # WAF implementation and configuration
 ```
+
+---
 
 ## 4. Request Lifecycle
 
 ```mermaid
 sequenceDiagram
-    participant C as Client
-    participant RR as RoadRunner
-    participant MW as Middleware<br/>Sanctum/WAF/SecurityHeaders
-    participant R as Router
-    participant CT as Controller
-    participant SV as Service/Action
-    participant DB as MySQL / MongoDB
-    participant TF as Transformer
-    C->>RR: HTTP request
-    RR->>MW: reuse worker, no bootstrap
-    MW->>MW: enabled? → hash_equals bypass? → IP → RateLimiter → patterns → limits
-    alt WAF protect & violation
-        MW-->>C: 403 / 429
-    end
-    MW->>R: next(request)
-    R->>CT: dispatch + auth:sanctum
-    CT->>CT: validate + authorize (Policy)
-    CT->>SV: DTO → Service → Action
-    SV->>DB: Model query / write
-    DB-->>SV: result
-    SV->>TF: batch load users/metadata (Cache 5m)
-    TF-->>CT: shaped JSON
-    CT-->>C: Http trait {success, data} / {success:false, code}
+    autonumber
+    participant C as Nuxt 4 Client
+    participant RR as RoadRunner Worker
+    participant MW as WAF & Security Headers
+    participant GQL as Lighthouse GraphQL Engine
+    participant RES as Query / Mutation Resolver
+    participant DB as MySQL & MongoDB
+    participant TF as PostTransformer Batcher
+
+    C->>RR: POST /graphql (with session cookie)
+    RR->>MW: Pass to middleware
+    MW->>MW: Check rate limits & pattern scans
+    MW->>GQL: Dispatch to GraphQL router
+    GQL->>GQL: Validate AST depth (max 8) & complexity (max 200)
+    GQL->>GQL: Check @guard session authentication
+    GQL->>RES: Invoke Resolver (e.g. FeedQuery)
+    RES->>DB: Fetch posts from MongoDB
+    RES->>TF: Batch load authors & metadata from MySQL
+    TF->>DB: User::whereIn(...) & PostMetaData::whereIn(...)
+    TF-->>RES: Hydrated post records
+    RES-->>GQL: Resolved GraphQL types
+    GQL-->>C: JSON { data: { feed: { ... } } }
 ```
 
-1. **RoadRunner** receives HTTP, reuses worker (no bootstrap per request).
-2. `bootstrap/app.php` `withMiddleware` prepends `EnsureFrontendRequestsAreStateful` → `WebApplicationFirewall` → `SecurityHeaders` to `api` group.
-3. **WAF** (`app/Http/Middleware/WebApplicationFirewall.php`):
-   `enabled? → bypass token (hash_equals) → IP check → rate limit (RateLimiter) → pattern scans (SQLi/XSS/traversal/UA) → size limits → file upload` — `monitor` logs only, `protect` returns 403/429.
-4. **SecurityHeaders** adds HSTS, X-Frame-Options, CSP (prod), Cache-Control for `api/*`.
-5. Router dispatches to controller; `auth:sanctum` verified for `/api/v1/*`.
-6. Controller validates (`FormRequest`/`$request->validate`), authorizes (`$this->authorize`/`cannot`), delegates to **Service**.
-7. Service applies business rules, calls **Action** for writes, uses **DTO** for typed params.
-8. **Model** hits MySQL or MongoDB. Cross-DB consistency is manual: `PostService::createPost` rolls back Mongo doc if MySQL `PostMetaData` fails; `deletePost` best-effort metadata cleanup.
-9. **Transformer** batch-loads users/metadata/likes/reposts (with `Cache::remember` for users, 5 min) and shapes JSON.
-10. `Http` trait wraps in `{success, message?, data}` or `{success:false, message, code}`.
+---
 
-## 5. Data Architecture
+## 5. The Hybrid Storage & Batch Loading Pattern
 
-```mermaid
-erDiagram
-    users ||--o{ post_meta_data : owns
-    users ||--o{ post_likes : likes
-    users ||--o{ post_reposts : reposts
-    post_meta_data ||--|| posts : "logical post_id"
-    posts ||--o{ comments : has
-    comments ||--o{ comments : replies
-    users ||--o{ posts : authors
-```
+Because `Post` lives in MongoDB and `User` lives in MySQL, cross-database joins are impossible at the database engine level.
 
-> Full ERD with columns, indexes and MySQL ↔ Mongo links: see `database/SCHEMA.md` and `docs/database/SCHEMA.md`.
-
-### 5.1 MySQL (relational)
-
-```
-users(id, name, username UNIQUE, email UNIQUE, password hashed, avatar, bio, email_verified_at)
-post_meta_data(id, post_id VARCHAR FK→posts._id logical, user_id FK, likes_count, comments_count, shares_count, reposts_count)
-post_likes(id, post_id VARCHAR, user_id, timestamps, UNIQUE(post_id,user_id))
-post_reposts(id, post_id VARCHAR, user_id, timestamps, UNIQUE(post_id,user_id))
-personal_access_tokens, cache, jobs, sessions, password_reset_tokens (framework)
-```
-
-Counters are denormalized for feed speed; incremented via `CreateCommentAction` / `LikePostAction` / `RepostPostAction` with guarded `where(col,>,0)->decrement`.
-
-### 5.2 MongoDB
-
-```
-posts { _id:ObjectId, content:String, tags:String[], user_id:Number|String, created_at, updated_at }
-comments { _id, content, post_id:String, user_id, parent_id:String|null, created_at }
-tags { _id, name } // via TagFactory, hashtag extraction
-```
-
-`PostService::getFeed` uses `latest()` (= `created_at desc`). `CommentService::getThread` uses `$graphLookup` on `comments` to flatten descendants in one aggregation (maxDepth 50, sorted `created_at asc`).
-
-### 5.3 Hybrid Consistency
-
-No XA transaction across MySQL+Mongo. Strategy: **Mongo first, MySQL second, compensate on failure**. Acceptable for social content (eventual counter drift is tolerable; `PostMetaData` can be rebuilt from Mongo counts if needed).
-
-## 6. Layering & Patterns
-
-```mermaid
-classDiagram
-    class Controller {
-        <<Http trait>>
-        +success() JsonResponse
-        +error() JsonResponse
-    }
-    class PostController
-    class CommentController
-    class ProfileController
-    class SearchController
-    class PostInteractionController
-    class UtilityController
-    Controller <|-- PostController
-    Controller <|-- CommentController
-    Controller <|-- ProfileController
-    Controller <|-- SearchController
-    Controller <|-- PostInteractionController
-    Controller <|-- UtilityController
-
-    class Service {
-        <<orchestrator>>
-    }
-    class PostService
-    class CommentService
-    class UserService
-    class SearchService
-    class InteractionService
-    Service <|-- PostService
-    Service <|-- CommentService
-    Service <|-- UserService
-    Service <|-- SearchService
-    Service <|-- InteractionService
-
-    class Action {
-        +execute()
-    }
-    class CreateCommentAction
-    class LikePostAction
-    class RepostPostAction
-    Action <|-- CreateCommentAction
-    Action <|-- LikePostAction
-    Action <|-- RepostPostAction
-
-    class Transformer {
-        +transformPosts()
-        +transformCollection()
-    }
-    class PostTransformer
-    class CommentTransformer
-    Transformer <|-- PostTransformer
-    Transformer <|-- CommentTransformer
-
-    class Model {
-        <<Eloquent>>
-    }
-    class User
-    class Post
-    class Comment
-    class PostMetaData
-    class PostLike
-    class PostRepost
-    Model <|-- User
-    Model <|-- Post
-    Model <|-- Comment
-    Model <|-- PostMetaData
-    Model <|-- PostLike
-    Model <|-- PostRepost
-
-    class Policy {
-        +update() bool
-        +delete() bool
-    }
-    class PostPolicy
-    class CommentPolicy
-    Policy <|-- PostPolicy
-    Policy <|-- CommentPolicy
-
-    PostController --> PostService
-    CommentController --> CommentService
-    ProfileController --> UserService
-    SearchController --> SearchService
-    PostInteractionController --> InteractionService
-    PostService --> Post
-    CommentService --> Comment
-    CommentService --> CreateCommentAction
-    InteractionService --> LikePostAction
-    InteractionService --> RepostPostAction
-    PostService --> HashtagTrait
-    PostController --> PostTransformer
-    CommentService --> CommentTransformer
-    PostController --> PostPolicy
-    CommentController --> CommentPolicy
-```
-
-* **Controllers are thin**: validate, authorize, delegate to Service, return `Http::success/error`. Fat logic (e.g. old `CommentController` 454 LoC) was extracted.
-* **Services are orchestrators**: `PostService`, `CommentService`, `InteractionService`, `SearchService`, `UserService`. They own queries, transactions, logging.
-* **Actions are atomic writes**: single `execute()` method, called by Services.
-* **DTOs** (`PostData`, `CommentData`) carry validated input.
-* **Transformers** handle N+1 avoidance (single `whereIn` per relation) and presentation (`diffForHumans`, `reply_count`, `replying_to`).
-* **Policies** gate `update`/`delete` on ownership.
-* **Traits** (`HashtagTrait`, `Http`, `RegisteredUser`) share cross-cutting helpers.
-
-## 7. Security
-
-See `docs/WAF_README.md` and `docs/WAF_IMPLEMENTATION.md` for WAF detail. Summary:
-
-* `WebApplicationFirewall` (regex patterns for SQLi/XSS/traversal, UA block, file extension/size, URI/post size, `hash_equals` bypass tokens).
-* `SecurityHeaders` (HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, CSP prod, Cache-Control).
-* Auth: Sanctum tokens, `password: hashed` cast, email verification (`signed` route + `EnsureEmailIsVerified`), throttle `6,1` on verify, rate limits on `api/*` / `api/auth/*` / `api/register`.
-* `UtilityController` endpoints are intentionally unauthenticated but sanitized (no request reflection, no exception leak, `config()` not `env()`).
-
-## 8. Caching & Performance
-
-* `PostTransformer` caches user batches (`users:{hash}` 300s, `Cache::remember`).
-* `WAF` rate limits via `RateLimiter` (Redis or array in tests).
-* RoadRunner persistent workers + `opcache` (prod).
-* `CreateSearchIndexes` command creates Mongo indexes for search.
-* Pagination capped (`per_page` min 15 max 50, default 15).
-
-## 9. Testing
-
-PHPUnit 11, `RefreshDatabase`, `Sanctum::actingAs`. Suites: `Auth/*`, `PostTest`, `PostInteractionTest`, `UserProfileTest`, `SearchTest`, `MongoDBTest`, `WafTest`/`WafEdgeCasesTest`. Run: `php artisan test --filter=WafTest`.
-
-## 10. Deployment
-
-```mermaid
-flowchart TB
-    Dev[Developer] --> GIT[Git push main]
-    GIT --> CI[CI: pint --dirty<br/>php artisan test]
-    CI --> BUILD[Build<br/>composer install --no-dev<br/>rr binary]
-    BUILD --> REG[Container Registry]
-    REG --> PROD[Prod Host<br/>RoadRunner]
-    PROD --> MYSQL[(MySQL Managed)]
-    PROD --> MONGO[(Mongo Atlas / Community)]
-    PROD --> REDIS[(Redis)]
-    PROD --> TLS[TLS Termination<br/>Nginx / ALB]
-    TLS --> Client2[Clients]
-```
-
-* Dev: `composer install && cp .env.example .env && php artisan key:generate && php artisan migrate --seed && ./rr serve` or `php artisan serve`.
-* Prod: `APP_ENV=production APP_DEBUG=false`, managed MySQL/MongoDB/Redis, `WAF_ENABLED=true WAF_MODE=protect`, `./rr serve -c .rr.prod.yaml`, OpCache, TLS termination before RoadRunner.
-
-## 11. Decisions & Trade-offs
-
-* **Hybrid DB vs single DB**: gained feed scale, paid cross-DB compensation complexity.
-* **RoadRunner vs Octane+Swoole**: RR binary is simpler to ship, no Swoole extension; similar performance.
-* **Regex WAF vs ModSecurity**: simpler, no extra proxy, but regex is brittle vs full WAF engine — mitigated by `monitor` mode + allowlist.
-* **Transformers vs API Resources**: Transformers batch more aggressively; `PostResource` remains for potential JSON:API use.
-
+### The Batch Loader Solution:
+Instead of running a separate query for each post's author ($N+1$ queries):
+1. **Extraction**: Collect all unique `user_id`s from the MongoDB post collection.
+2. **Bulk Fetch**: Execute a single `User::whereIn('id', $userIds)` query against MySQL.
+3. **Caching**: Store the fetched authors in memory with a 5-minute TTL via `Cache::remember`.
+4. **Metadata Bulk Fetch**: Execute a single `PostMetaData::whereIn('post_id', $postIds)` query.
+5. **Assembly**: PostTransformer maps the MySQL authors and metadata onto the MongoDB post objects before serializing them into the GraphQL response.

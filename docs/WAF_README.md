@@ -61,6 +61,7 @@ WAF_IP_BLACKLIST=
 # Rate Limiting
 WAF_RATE_LIMIT_API=100
 WAF_RATE_LIMIT_AUTH=10
+WAF_RATE_LIMIT_GRAPHQL=120
 WAF_RATE_LIMIT_REGISTER=3
 
 # File Upload Limits (in KB)
@@ -279,6 +280,13 @@ The WAF complements existing Laravel security features:
 - Laravel CORS for cross-origin protection
 - Laravel Rate Limiting for additional controls
 - Laravel Validation for input sanitization
+
+## GraphQL Security Integration
+
+The WAF works directly with Nuwave Lighthouse to protect the `POST /graphql` endpoint:
+1. **AST Query Sanitization**: The WAF scans incoming variables and input payloads while exempting the raw query AST string to avoid false positives on GraphQL syntax.
+2. **Dedicated Rate Limiting**: GraphQL requests are rate-limited via `WAF_RATE_LIMIT_GRAPHQL` (default 120/min).
+3. **Query Depth & Complexity Defense**: Lighthouse enforces a maximum query depth of 8 and complexity of 200 to prevent nested recursive DoS attacks before query execution.
 
 ## Support
 

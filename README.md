@@ -11,18 +11,23 @@ A high-performance, secure social media API built with Laravel 12, featuring a h
 - **User Profiles**: View own profile and other users' profiles with posts
 - **Search**: Search users and posts with advanced filtering
 - **Hybrid Database**: MySQL for relational data + MongoDB for scalable post storage
+- **GraphQL Engine**: Nuwave Lighthouse for declarative data fetching with batch-loaded hybrid resolvers
+- **Interactive GraphiQL**: Developer explorer at `http://localhost:8000/graphiql`
 
 ### **Security & Performance**
-- **Web Application Firewall (WAF)**: Comprehensive security middleware
-- **Rate Limiting**: Configurable limits for API endpoints
+- **Web Application Firewall (WAF)**: Security middleware with AST-safe query scanning
+- **GraphQL Security**: Maximum query depth of 8 and complexity limit of 200
+- **Rate Limiting**: Configurable limits (120 req/min for `/graphql`)
 - **Security Headers**: HSTS, CSP, X-Frame-Options, and more
-- **File Upload Protection**: Validation and sanitization
-- **RoadRunner**: High-performance PHP application server
-- **MongoDB Integration**: Scalable NoSQL storage for posts
+- **RoadRunner**: High-performance PHP persistent workers via Laravel Octane
+- **MongoDB Integration**: Scalable NoSQL storage for feeds and comment trees
 
-## 📋 API Endpoints
+## 📋 API & GraphQL Architecture
 
-> **Note:** All `/api/v1/` routes require a Sanctum token (`Authorization: Bearer <token>`). Authentication endpoints live under `/auth` and use web sessions.
+> **Primary Data Endpoint**: `POST /graphql` (Authenticated via Sanctum session cookie or `Authorization: Bearer <token>`)
+> **Interactive IDE**: `GET /graphiql` (Available in development)
+> **Authentication Endpoints**: Live under `/auth/*` and use stateful web sessions.
+> **Documentation**: See [`docs/GRAPHQL.md`](docs/GRAPHQL.md) for full tutorial and code examples.
 
 ### **Authentication** (`/auth`)
 | Method | Endpoint | Description | Auth Required |
@@ -35,61 +40,44 @@ A high-performance, secure social media API built with Laravel 12, featuring a h
 | GET | `/auth/verify-email/{id}/{hash}` | Verify email address | Yes (signed URL) |
 | POST | `/auth/email/verification-notification` | Resend verification email | Yes |
 
-### **Profile** (`/api/v1/me`) — Auth Required
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/me/profile` | Get authenticated user profile |
-| GET | `/me/reposts` | Get authenticated user's reposts |
-| GET | `/me/posts` | Get authenticated user's posts |
-| POST | `/me/posts` | Create new post |
-| GET | `/me/posts/{id}` | Get own specific post |
-| PUT/PATCH | `/me/posts/{id}` | Update post |
-| DELETE | `/me/posts/{id}` | Delete post |
+### **GraphQL Operations** (`POST /graphql`)
 
-### **Users** (`/api/v1/users`) — Auth Required
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/users/{username}` | Get user profile |
-| GET | `/users/{username}/posts` | Get user's posts |
-| GET | `/users/{username}/reposts` | Get user's reposts |
+#### **Queries**
+| Query | Arguments | Return Type | Description |
+|-------|-----------|-------------|-------------|
+| `me` | None | `User` | Authenticated user profile |
+| `user` | `username: String!` | `User` | Public user profile |
+| `feed` | `page: Int, perPage: Int` | `PostPaginator!` | Paginated global posts feed |
+| `post` | `id: ID!` | `Post` | Retrieve single post by ID |
+| `myPosts` | `page: Int, perPage: Int` | `PostPaginator!` | Authenticated user's posts |
+| `myReposts` | `page: Int, perPage: Int` | `PostPaginator!` | Authenticated user's reposts |
+| `userPosts` | `username: String!, page: Int, perPage: Int` | `PostPaginator!` | Posts by a specific user |
+| `userReposts` | `username: String!, page: Int, perPage: Int` | `PostPaginator!` | Reposts by a specific user |
+| `myLikedPosts` | `page: Int, perPage: Int` | `PostPaginator!` | Posts liked by the authenticated user |
+| `postComments` | `postId: ID!` | `[Comment!]!` | Top-level comments for a post |
+| `commentThread` | `id: ID!` | `[Comment!]!` | Chronological thread tree via `$graphLookup` |
+| `commentReplies` | `id: ID!` | `[Comment!]!` | Direct replies to a comment |
+| `search` | `keyword: String!, includePosts: Boolean` | `SearchResult!` | Search users and posts |
 
-### **Posts** (`/api/v1/posts`) — Auth Required
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/posts` | Get paginated feed |
-| GET | `/posts/{id}` | Get specific post |
+#### **Mutations**
+| Mutation | Arguments | Return Type | Description |
+|----------|-----------|-------------|-------------|
+| `createPost` | `content: String!` | `Post!` | Create post with hashtag extraction |
+| `updatePost` | `id: ID!, content: String!` | `Post!` | Update own post |
+| `deletePost` | `id: ID!` | `Boolean!` | Delete own post |
+| `likePost` | `postId: ID!` | `InteractionResult!` | Toggle like on a post |
+| `unlikePost` | `postId: ID!` | `InteractionResult!` | Remove like from a post |
+| `repost` | `postId: ID!` | `InteractionResult!` | Toggle repost on a post |
+| `createComment` | `postId: ID!, content: String!, parentId: ID` | `Comment!` | Create comment or nested reply |
+| `deleteComment` | `id: ID!` | `Boolean!` | Delete own comment |
+| `updateProfile` | `name: String, bio: String, avatar: String` | `User!` | Update profile details |
 
-### **Post Interactions** (`/api/v1/posts/{id}`) — Auth Required
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/like` | Like a post |
-| DELETE | `/like` | Unlike a post |
-| GET | `/like/check` | Check if authenticated user liked the post |
-| POST | `/share` | Share a post |
-| POST | `/repost` | Repost a post |
-| GET | `/repost/check` | Check if authenticated user reposted the post |
-| GET | `/interactions` | Get post interaction counts |
-
-### **Comments** (`/api/v1`) — Auth Required
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/posts/{id}/comments` | List top-level comments for a post |
-| POST | `/posts/{id}/comments` | Create comment (or reply via `parent_id`) |
-| GET | `/comments/{id}` | Get specific comment |
-| DELETE | `/comments/{id}` | Delete own comment |
-| GET | `/comments/{id}/replies` | Get direct replies to a comment |
-| GET | `/comments/{id}/thread` | Get flat chronological thread under a comment |
-
-### **Search** (`/api/v1`) — Auth Required
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/search` | Search users (and posts with `?posts=include`) |
-
-### **Utility**
+### **Utility & Diagnostics**
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
-| GET/POST | `/api/v1/waf-test` | Test WAF functionality (returns diagnostics only) | No |
+| GET/POST | `/api/v1/waf-test` | Test WAF functionality | No |
 | GET | `/api/ping-mongodb` | Test MongoDB connection | No |
+| GET | `/up` | Health check probe | No |
 
 ## 🛠️ Technology Stack
 
