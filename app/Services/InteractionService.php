@@ -6,9 +6,9 @@ use App\Actions\LikePostAction;
 use App\Actions\RepostPostAction;
 use App\DTOs\InteractionResult;
 use App\Models\Post;
+use App\Models\PostLike;
 use App\Models\PostMetaData;
 use App\Models\PostRepost;
-use Illuminate\Support\Facades\Log;
 
 class InteractionService
 {
@@ -29,11 +29,11 @@ class InteractionService
 
     public function checkLike(string $id, ?int $userId): bool
     {
-        if (!$userId) {
+        if (! $userId) {
             return false;
         }
 
-        return \App\Models\PostLike::where('post_id', $id)
+        return PostLike::where('post_id', $id)
             ->where('user_id', $userId)
             ->exists();
     }
@@ -41,7 +41,7 @@ class InteractionService
     public function sharePost(string $id): int
     {
         $post = Post::find($id);
-        if (!$post) {
+        if (! $post) {
             throw new \RuntimeException('Post not found', 404);
         }
 
@@ -62,7 +62,7 @@ class InteractionService
 
     public function checkRepost(string $id, ?int $userId): bool
     {
-        if (!$userId) {
+        if (! $userId) {
             return false;
         }
 
@@ -74,13 +74,13 @@ class InteractionService
     public function getInteractions(string $id): array
     {
         $post = Post::find($id);
-        if (!$post) {
+        if (! $post) {
             throw new \RuntimeException('Post not found', 404);
         }
 
         $metadata = PostMetaData::where('post_id', $id)->first();
 
-        if (!$metadata) {
+        if (! $metadata) {
             $metadata = PostMetaData::create([
                 'post_id' => $id,
                 'user_id' => $post->user_id,

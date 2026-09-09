@@ -9,11 +9,11 @@ class Post extends Model
 {
     use HasFactory;
 
-    protected $connection = "mongodb";
+    protected $connection = 'mongodb';
 
-    protected $collection = "posts";
+    protected $collection = 'posts';
 
-    protected $fillable = ["content", "tags", "user_id"];
+    protected $fillable = ['content', 'tags', 'user_id'];
 
     public function metadata()
     {

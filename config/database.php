@@ -63,17 +63,17 @@ return [
         ],
 
         'mongodb' => [
-            "driver" => 'mongodb',
-            "dsn" => env('MONGODB_URI'),
-            "database" => env('MONGODB_DATABASE'),
-            "options" => [
-                "ssl" => false,
-                "tls" => false,
-                "tlsAllowInvalidCertificates" => false,
-                "tlsAllowInvalidHostnames" => false,
-                "retryWrites" => true,
-                "w" => "majority"
-            ]
+            'driver' => 'mongodb',
+            'dsn' => env('MONGODB_URI'),
+            'database' => env('MONGODB_DATABASE'),
+            'options' => [
+                'ssl' => false,
+                'tls' => false,
+                'tlsAllowInvalidCertificates' => false,
+                'tlsAllowInvalidHostnames' => false,
+                'retryWrites' => true,
+                'w' => 'majority',
+            ],
         ],
 
         'mariadb' => [
@@ -161,7 +161,7 @@ return [
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_') . '_database_'),
+            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
         ],
 
         'default' => [

@@ -2,10 +2,11 @@
 
 namespace Database\Factories;
 
+use App\Models\PostMetaData;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PostMetaData>
+ * @extends Factory<PostMetaData>
  */
 class PostMetaDataFactory extends Factory
 {
@@ -17,7 +18,7 @@ class PostMetaDataFactory extends Factory
     public function definition(): array
     {
         return [
-            "post_id" => 1
+            'post_id' => 1,
         ];
     }
 }

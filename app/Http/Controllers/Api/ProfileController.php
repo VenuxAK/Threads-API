@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Post;
-use App\Models\User;
 use App\Services\UserService;
 use App\Transformers\PostTransformer;
 use App\Utils\Http;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class ProfileController extends Controller
 {
@@ -40,7 +40,7 @@ class ProfileController extends Controller
     public function show(Request $request, string $username)
     {
         $user = $this->userService->getUser($username);
-        if (!$user) {
+        if (! $user) {
             return $this->error('User not found', 404);
         }
 
@@ -66,7 +66,7 @@ class ProfileController extends Controller
     public function userPosts(Request $request, string $username)
     {
         $user = $this->userService->getUser($username);
-        if (!$user) {
+        if (! $user) {
             return $this->error('User not found', 404);
         }
 
@@ -78,7 +78,7 @@ class ProfileController extends Controller
             ->paginate($perPage, ['*'], 'page', $page);
 
         $transformed = $this->postTransformer->transformPosts($posts);
-        $postsArray = $transformed instanceof \Illuminate\Pagination\LengthAwarePaginator
+        $postsArray = $transformed instanceof LengthAwarePaginator
             ? $transformed->getCollection()->values()
             : $transformed;
         $postsArray = $postsArray->filter(fn ($p) => ! empty($p['content']) && trim((string) $p['content']) !== '' && ($p['author']['username'] ?? '') !== 'deleted')->values();
@@ -106,17 +106,17 @@ class ProfileController extends Controller
     public function userPost(Request $request, string $username)
     {
         $user = $this->userService->getUser($username);
-        if (!$user) {
+        if (! $user) {
             return $this->error('User not found', 404);
         }
 
         $postId = $request->query('post');
-        if (!$postId) {
+        if (! $postId) {
             return $this->error('Post ID is required', 400);
         }
 
         $post = Post::where('user_id', $user->id)->where('id', $postId)->first();
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found', 404);
         }
 
@@ -128,7 +128,7 @@ class ProfileController extends Controller
     public function userReposts(Request $request, string $username)
     {
         $user = $this->userService->getUser($username);
-        if (!$user) {
+        if (! $user) {
             return $this->error('User not found', 404);
         }
 

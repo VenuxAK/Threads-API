@@ -70,6 +70,34 @@ type Query {
         page: Int = 1
         perPage: Int = 20
     ): SearchResult! @guard @field(resolver: "App\\GraphQL\\Queries\\SearchQuery")
+
+    "Retrieve users that a given user is following."
+    following(userId: ID!): [User!]! @guard @field(resolver: "App\\GraphQL\\Queries\\FollowingQuery")
+
+    "Retrieve users who follow a given user."
+    followers(userId: ID!): [User!]! @guard @field(resolver: "App\\GraphQL\\Queries\\FollowersQuery")
+
+    "Fetch the paginated feed of posts published by users the authenticated user follows."
+    followingFeed(
+        page: Int = 1
+        perPage: Int = 15
+    ): PostPaginator! @guard @field(resolver: "App\\GraphQL\\Queries\\FollowingFeedQuery")
+
+    "Retrieve paginated in-app notifications for the authenticated user."
+    notifications(
+        page: Int = 1
+        perPage: Int = 20
+        type: String
+    ): NotificationPaginator! @guard @field(resolver: "App\\GraphQL\\Queries\\NotificationsQuery")
+
+    "Retrieve total unread in-app notification count for badge indicators."
+    unreadNotificationsCount: Int! @guard @field(resolver: "App\\GraphQL\\Queries\\UnreadNotificationsCountQuery")
+
+    "Retrieve posts bookmarked by the authenticated user."
+    mySavedPosts(
+        page: Int = 1
+        perPage: Int = 15
+    ): PostPaginator! @guard @field(resolver: "App\\GraphQL\\Queries\\MySavedPostsQuery")
 }
 
 """
@@ -112,6 +140,24 @@ type Mutation {
         bio: String
         avatar: String
     ): User! @guard @field(resolver: "App\\GraphQL\\Mutations\\ProfileMutation@update")
+
+    "Follow a target user account."
+    followUser(userId: ID!): FollowResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\FollowMutation@follow")
+
+    "Unfollow a target user account."
+    unfollowUser(userId: ID!): FollowResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\FollowMutation@unfollow")
+
+    "Mark a specific notification as read."
+    markNotificationAsRead(id: ID!): Boolean! @guard @field(resolver: "App\\GraphQL\\Mutations\\NotificationMutation@markAsRead")
+
+    "Mark all notifications as read for the authenticated user."
+    markAllNotificationsAsRead: Boolean! @guard @field(resolver: "App\\GraphQL\\Mutations\\NotificationMutation@markAllAsRead")
+
+    "Bookmark a post for later viewing."
+    savePost(postId: ID!): Boolean! @guard @field(resolver: "App\\GraphQL\\Mutations\\SavedPostMutation@save")
+
+    "Remove a post bookmark."
+    unsavePost(postId: ID!): Boolean! @guard @field(resolver: "App\\GraphQL\\Mutations\\SavedPostMutation@unsave")
 }
 
 """
@@ -126,6 +172,9 @@ type User {
     avatar: String
     bio: String
     created_at: String
+    followers_count: Int
+    following_count: Int
+    is_following: Boolean
 }
 
 """
@@ -143,6 +192,7 @@ type Post {
     reposts: Int!
     is_liked: Boolean!
     is_reposted: Boolean!
+    is_saved: Boolean!
     interactions: InteractionStats!
     author: User!
 }
@@ -215,3 +265,35 @@ type SearchResult {
     posts: [Post!]
     query: String!
 }
+
+"""
+Result of a follow or unfollow mutation.
+"""
+type FollowResult {
+    status: Boolean!
+    followers_count: Int!
+    following_count: Int!
+    user: User
+}
+
+"""
+Represents an in-app notification alert for an interaction event.
+"""
+type Notification {
+    id: ID!
+    type: String!
+    entity_id: String
+    read_at: String
+    created_at: String!
+    sender: User!
+    post: Post
+}
+
+"""
+Paginated collection wrapper for notifications.
+"""
+type NotificationPaginator {
+    data: [Notification!]!
+    pagination: PaginationInfo!
+}
+

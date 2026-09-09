@@ -29,84 +29,84 @@ class PostSeeder extends Seeder
         // Define realistic posts with meaningful content and hashtags
         $posts = [
             [
-                'content' => "Just launched my new startup! #startup #entrepreneur #tech #innovation #business",
-                'tags' => ['startup', 'entrepreneur', 'tech', 'innovation', 'business']
+                'content' => 'Just launched my new startup! #startup #entrepreneur #tech #innovation #business',
+                'tags' => ['startup', 'entrepreneur', 'tech', 'innovation', 'business'],
             ],
             [
-                'content' => "Loving the new Laravel features! #laravel #php #webdev #programming #backend",
-                'tags' => ['laravel', 'php', 'webdev', 'programming', 'backend']
+                'content' => 'Loving the new Laravel features! #laravel #php #webdev #programming #backend',
+                'tags' => ['laravel', 'php', 'webdev', 'programming', 'backend'],
             ],
             [
-                'content' => "Beautiful day for hiking in the mountains #hiking #nature #outdoors #adventure #mountains",
-                'tags' => ['hiking', 'nature', 'outdoors', 'adventure', 'mountains']
+                'content' => 'Beautiful day for hiking in the mountains #hiking #nature #outdoors #adventure #mountains',
+                'tags' => ['hiking', 'nature', 'outdoors', 'adventure', 'mountains'],
             ],
             [
-                'content' => "Working on a new React project #react #javascript #frontend #webdev #coding",
-                'tags' => ['react', 'javascript', 'frontend', 'webdev', 'coding']
+                'content' => 'Working on a new React project #react #javascript #frontend #webdev #coding',
+                'tags' => ['react', 'javascript', 'frontend', 'webdev', 'coding'],
             ],
             [
-                'content' => "Just finished reading an amazing book about AI #ai #machinelearning #tech #future #book",
-                'tags' => ['ai', 'machinelearning', 'tech', 'future', 'book']
+                'content' => 'Just finished reading an amazing book about AI #ai #machinelearning #tech #future #book',
+                'tags' => ['ai', 'machinelearning', 'tech', 'future', 'book'],
             ],
             [
-                'content' => "Coffee and coding - the perfect combination #coffee #coding #programming #developer #morning",
-                'tags' => ['coffee', 'coding', 'programming', 'developer', 'morning']
+                'content' => 'Coffee and coding - the perfect combination #coffee #coding #programming #developer #morning',
+                'tags' => ['coffee', 'coding', 'programming', 'developer', 'morning'],
             ],
             [
-                'content' => "Traveling to Japan next month! So excited #travel #japan #adventure #culture #exploring",
-                'tags' => ['travel', 'japan', 'adventure', 'culture', 'exploring']
+                'content' => 'Traveling to Japan next month! So excited #travel #japan #adventure #culture #exploring',
+                'tags' => ['travel', 'japan', 'adventure', 'culture', 'exploring'],
             ],
             [
-                'content' => "Learning MongoDB for our new project #mongodb #database #nosql #backend #tech",
-                'tags' => ['mongodb', 'database', 'nosql', 'backend', 'tech']
+                'content' => 'Learning MongoDB for our new project #mongodb #database #nosql #backend #tech',
+                'tags' => ['mongodb', 'database', 'nosql', 'backend', 'tech'],
             ],
             [
-                'content' => "Just completed a 10k run! #fitness #running #health #exercise #marathon",
-                'tags' => ['fitness', 'running', 'health', 'exercise', 'marathon']
+                'content' => 'Just completed a 10k run! #fitness #running #health #exercise #marathon',
+                'tags' => ['fitness', 'running', 'health', 'exercise', 'marathon'],
             ],
             [
-                'content' => "Working from home today #remote #workfromhome #productivity #homeoffice #tech",
-                'tags' => ['remote', 'workfromhome', 'productivity', 'homeoffice', 'tech']
+                'content' => 'Working from home today #remote #workfromhome #productivity #homeoffice #tech',
+                'tags' => ['remote', 'workfromhome', 'productivity', 'homeoffice', 'tech'],
             ],
             [
-                'content' => "Building a REST API with Laravel Sanctum #laravel #api #rest #sanctum #backend",
-                'tags' => ['laravel', 'api', 'rest', 'sanctum', 'backend']
+                'content' => 'Building a REST API with Laravel Sanctum #laravel #api #rest #sanctum #backend',
+                'tags' => ['laravel', 'api', 'rest', 'sanctum', 'backend'],
             ],
             [
-                'content' => "Photography session in the park #photography #nature #art #creative #outdoors",
-                'tags' => ['photography', 'nature', 'art', 'creative', 'outdoors']
+                'content' => 'Photography session in the park #photography #nature #art #creative #outdoors',
+                'tags' => ['photography', 'nature', 'art', 'creative', 'outdoors'],
             ],
             [
-                'content' => "Just deployed our new microservices architecture #microservices #docker #kubernetes #devops #cloud",
-                'tags' => ['microservices', 'docker', 'kubernetes', 'devops', 'cloud']
+                'content' => 'Just deployed our new microservices architecture #microservices #docker #kubernetes #devops #cloud',
+                'tags' => ['microservices', 'docker', 'kubernetes', 'devops', 'cloud'],
             ],
             [
-                'content' => "Weekend coding marathon #weekend #coding #programming #developer #projects",
-                'tags' => ['weekend', 'coding', 'programming', 'developer', 'projects']
+                'content' => 'Weekend coding marathon #weekend #coding #programming #developer #projects',
+                'tags' => ['weekend', 'coding', 'programming', 'developer', 'projects'],
             ],
             [
-                'content' => "Exploring new hiking trails #hiking #adventure #nature #exploring #weekend",
-                'tags' => ['hiking', 'adventure', 'nature', 'exploring', 'weekend']
+                'content' => 'Exploring new hiking trails #hiking #adventure #nature #exploring #weekend',
+                'tags' => ['hiking', 'adventure', 'nature', 'exploring', 'weekend'],
             ],
             [
-                'content' => "Just attended an amazing tech conference #tech #conference #learning #networking #innovation",
-                'tags' => ['tech', 'conference', 'learning', 'networking', 'innovation']
+                'content' => 'Just attended an amazing tech conference #tech #conference #learning #networking #innovation',
+                'tags' => ['tech', 'conference', 'learning', 'networking', 'innovation'],
             ],
             [
-                'content' => "Working on improving our WAF implementation #security #waf #websecurity #cybersecurity #laravel",
-                'tags' => ['security', 'waf', 'websecurity', 'cybersecurity', 'laravel']
+                'content' => 'Working on improving our WAF implementation #security #waf #websecurity #cybersecurity #laravel',
+                'tags' => ['security', 'waf', 'websecurity', 'cybersecurity', 'laravel'],
             ],
             [
-                'content' => "Morning meditation session #meditation #mindfulness #health #wellness #morning",
-                'tags' => ['meditation', 'mindfulness', 'health', 'wellness', 'morning']
+                'content' => 'Morning meditation session #meditation #mindfulness #health #wellness #morning',
+                'tags' => ['meditation', 'mindfulness', 'health', 'wellness', 'morning'],
             ],
             [
-                'content' => "Building a social media app with real-time features #realtime #websockets #socialmedia #app #development",
-                'tags' => ['realtime', 'websockets', 'socialmedia', 'app', 'development']
+                'content' => 'Building a social media app with real-time features #realtime #websockets #socialmedia #app #development',
+                'tags' => ['realtime', 'websockets', 'socialmedia', 'app', 'development'],
             ],
             [
-                'content' => "Just learned a new algorithm! #algorithms #datastructures #programming #learning #cs",
-                'tags' => ['algorithms', 'datastructures', 'programming', 'learning', 'cs']
+                'content' => 'Just learned a new algorithm! #algorithms #datastructures #programming #learning #cs',
+                'tags' => ['algorithms', 'datastructures', 'programming', 'learning', 'cs'],
             ],
         ];
 
@@ -145,7 +145,7 @@ class PostSeeder extends Seeder
 
                 $createdCount++;
             } catch (\Exception $e) {
-                $this->command->error('Failed to create post: ' . $e->getMessage());
+                $this->command->error('Failed to create post: '.$e->getMessage());
             }
         }
 

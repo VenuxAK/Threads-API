@@ -9,8 +9,9 @@ class Tag extends Model
 {
     use HasFactory;
 
-    protected $connection = "mongodb";
-    protected $collection = "tags";
-    protected $fillable = ["tag"];
-    
+    protected $connection = 'mongodb';
+
+    protected $collection = 'tags';
+
+    protected $fillable = ['tag'];
 }

@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 class PostRequest extends FormRequest
@@ -22,7 +22,7 @@ class PostRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'content' => ['required', 'string', 'max:5000'], 
+            'content' => ['required', 'string', 'max:5000'],
             // tags are extracted from content, not sent directly
         ];
     }
@@ -38,6 +38,7 @@ class PostRequest extends FormRequest
             'content.max' => 'Post content cannot exceed 5000 characters.',
         ];
     }
+
     /**
      * Handle a failed validation attempt.
      */

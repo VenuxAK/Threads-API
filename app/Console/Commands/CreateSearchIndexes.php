@@ -2,12 +2,14 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Comment;
+use App\Models\Post;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log;
 
 class CreateSearchIndexes extends Command
 {
     protected $signature = 'mongodb:create-indexes';
+
     protected $description = 'Create MongoDB search indexes for posts and comments';
 
     public function handle(): int
@@ -15,7 +17,7 @@ class CreateSearchIndexes extends Command
         $this->info('Creating MongoDB indexes...');
 
         try {
-            $post = new \App\Models\Post();
+            $post = new Post;
             $collection = $post->getTable();
             $post->getConnection()->getMongoDB()->selectCollection($collection)->createIndex(
                 ['content' => 'text'],
@@ -27,7 +29,7 @@ class CreateSearchIndexes extends Command
         }
 
         try {
-            $post = new \App\Models\Post();
+            $post = new Post;
             $post->getConnection()->getMongoDB()->selectCollection($post->getTable())->createIndex(
                 ['tags' => 1],
                 ['name' => 'tags_index']
@@ -38,7 +40,7 @@ class CreateSearchIndexes extends Command
         }
 
         try {
-            $comment = new \App\Models\Comment();
+            $comment = new Comment;
             $comment->getConnection()->getMongoDB()->selectCollection($comment->getTable())->createIndex(
                 ['post_id' => 1, 'parent_id' => 1, 'created_at' => -1],
                 ['name' => 'comments_lookup_index']
@@ -49,6 +51,7 @@ class CreateSearchIndexes extends Command
         }
 
         $this->info('Index creation complete.');
+
         return Command::SUCCESS;
     }
 }

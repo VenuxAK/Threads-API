@@ -9,20 +9,20 @@ class Comment extends Model
 {
     use HasFactory;
 
-    protected $connection = "mongodb";
+    protected $connection = 'mongodb';
 
-    protected $collection = "comments";
+    protected $collection = 'comments';
 
     protected $fillable = [
-        "content",
-        "post_id",
-        "user_id",
-        "parent_id",
+        'content',
+        'post_id',
+        'user_id',
+        'parent_id',
     ];
 
     protected $casts = [
-        "created_at" => "datetime",
-        "updated_at" => "datetime",
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     public function parent()

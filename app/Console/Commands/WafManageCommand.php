@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\RateLimiter;
 
 class WafManageCommand extends Command
 {
@@ -48,7 +47,8 @@ class WafManageCommand extends Command
 
             default:
                 $this->error("Unknown action: {$action}");
-                $this->line("Available actions: status, logs, clear-rate-limits, clear-logs");
+                $this->line('Available actions: status, logs, clear-rate-limits, clear-logs');
+
                 return 1;
         }
     }
@@ -62,10 +62,10 @@ class WafManageCommand extends Command
         $this->line(str_repeat('-', 40));
 
         // WAF Configuration
-        $this->line("<fg=cyan>Configuration:</>");
-        $this->line("  Enabled: " . (config('waf.enabled') ? '<fg=green>Yes</>' : '<fg=red>No</>'));
-        $this->line("  Mode: " . config('waf.mode', 'protect'));
-        $this->line("  Logging: " . (config('waf.logging.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
+        $this->line('<fg=cyan>Configuration:</>');
+        $this->line('  Enabled: '.(config('waf.enabled') ? '<fg=green>Yes</>' : '<fg=red>No</>'));
+        $this->line('  Mode: '.config('waf.mode', 'protect'));
+        $this->line('  Logging: '.(config('waf.logging.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
 
         // Rate Limits
         $this->line("\n<fg=cyan>Rate Limits:</>");
@@ -76,11 +76,11 @@ class WafManageCommand extends Command
 
         // Protection Status
         $this->line("\n<fg=cyan>Protections:</>");
-        $this->line("  SQL Injection: " . (config('waf.sql_injection.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
-        $this->line("  XSS: " . (config('waf.xss.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
-        $this->line("  Path Traversal: " . (config('waf.path_traversal.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
-        $this->line("  User Agent Blocking: " . (config('waf.user_agent_blocking.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
-        $this->line("  File Upload: " . (config('waf.file_upload.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
+        $this->line('  SQL Injection: '.(config('waf.sql_injection.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
+        $this->line('  XSS: '.(config('waf.xss.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
+        $this->line('  Path Traversal: '.(config('waf.path_traversal.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
+        $this->line('  User Agent Blocking: '.(config('waf.user_agent_blocking.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
+        $this->line('  File Upload: '.(config('waf.file_upload.enabled') ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>'));
 
         // Log File Status
         $logPath = storage_path('logs/waf.log');
@@ -91,8 +91,8 @@ class WafManageCommand extends Command
 
             $this->line("\n<fg=cyan>Log File:</>");
             $this->line("  Path: {$logPath}");
-            $this->line("  Size: " . $this->formatBytes($size));
-            $this->line("  Last Modified: " . date('Y-m-d H:i:s', $modified));
+            $this->line('  Size: '.$this->formatBytes($size));
+            $this->line('  Last Modified: '.date('Y-m-d H:i:s', $modified));
         }
 
         return 0;
@@ -105,8 +105,9 @@ class WafManageCommand extends Command
     {
         $logPath = storage_path('logs/waf.log');
 
-        if (!File::exists($logPath)) {
+        if (! File::exists($logPath)) {
             $this->warn('No WAF log file found.');
+
             return 0;
         }
 
@@ -131,6 +132,7 @@ class WafManageCommand extends Command
 
         if (empty($filteredLines)) {
             $this->line('No log entries found for the specified time period.');
+
             return 0;
         }
 
@@ -138,7 +140,7 @@ class WafManageCommand extends Command
             $this->line($line);
         }
 
-        $this->line("\nTotal entries: " . count($filteredLines));
+        $this->line("\nTotal entries: ".count($filteredLines));
 
         return 0;
     }
@@ -199,6 +201,6 @@ class WafManageCommand extends Command
 
         $bytes /= pow(1024, $pow);
 
-        return round($bytes, $precision) . ' ' . $units[$pow];
+        return round($bytes, $precision).' '.$units[$pow];
     }
 }

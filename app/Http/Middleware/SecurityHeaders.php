@@ -4,22 +4,22 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class SecurityHeaders
 {
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
 
         // Only add headers for normal HTTP responses
-        if (!$response instanceof BinaryFileResponse) {
+        if (! $response instanceof BinaryFileResponse) {
             $this->addSecurityHeaders($request, $response);
         }
 
@@ -61,14 +61,14 @@ class SecurityHeaders
         // Content Security Policy (production only)
         if (config('app.env') === 'production') {
             $csp =
-                "default-src 'self'; " .
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " .
-                "style-src 'self' 'unsafe-inline'; " .
-                "img-src 'self' data: https:; " .
-                "font-src 'self'; " .
-                "connect-src 'self'; " .
-                "frame-ancestors 'self'; " .
-                "base-uri 'self'; " .
+                "default-src 'self'; ".
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; ".
+                "style-src 'self' 'unsafe-inline'; ".
+                "img-src 'self' data: https:; ".
+                "font-src 'self'; ".
+                "connect-src 'self'; ".
+                "frame-ancestors 'self'; ".
+                "base-uri 'self'; ".
                 "form-action 'self';";
 
             $response->headers->set('Content-Security-Policy', $csp);

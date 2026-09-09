@@ -12,16 +12,16 @@ class PostMetaData extends Model
     use HasFactory;
 
     protected $fillable = [
-        "post_id",
-        "user_id",
-        "likes_count",
-        "comments_count",
-        "shares_count",
-        "reposts_count",
-        "visibility",
-        "status",
-        "scheduled_at",
-        "expires_at"
+        'post_id',
+        'user_id',
+        'likes_count',
+        'comments_count',
+        'shares_count',
+        'reposts_count',
+        'visibility',
+        'status',
+        'scheduled_at',
+        'expires_at',
     ];
 
     protected static function boot()
@@ -38,6 +38,6 @@ class PostMetaData extends Model
 
     public function author()
     {
-        return $this->belongsTo(User::class, "user_id");
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Post;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
@@ -280,8 +281,8 @@ class MongoDBTest extends TestCase
         $this->assertNotNull($post->updated_at);
 
         // Verify they are Carbon instances
-        $this->assertInstanceOf(\Carbon\Carbon::class, $post->created_at);
-        $this->assertInstanceOf(\Carbon\Carbon::class, $post->updated_at);
+        $this->assertInstanceOf(Carbon::class, $post->created_at);
+        $this->assertInstanceOf(Carbon::class, $post->updated_at);
     }
 
     /**

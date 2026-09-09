@@ -2,21 +2,25 @@
 
 namespace App\Transformers;
 
+use App\Models\Follow;
+use App\Models\Post;
 use App\Models\PostLike;
 use App\Models\PostMetaData;
 use App\Models\PostRepost;
+use App\Models\SavedPost;
 use App\Models\User;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Pagination\LengthAwarePaginator;
 
 class PostTransformer
 {
     /**
      * Transform a collection of posts
      *
-     * @param mixed $posts Can be Collection or LengthAwarePaginator
-     * @return \Illuminate\Support\Collection
+     * @param  mixed  $posts  Can be Collection or LengthAwarePaginator
+     * @return Collection
      */
     public function transformPosts($posts)
     {
@@ -37,9 +41,8 @@ class PostTransformer
         $currentUserId = Auth::id();
 
         // Retrieve the users corresponding to the post authors
-        // Use caching to reduce database queries
         $users = Cache::remember(
-            'users:' . md5(implode(',', $userIds->toArray())),
+            'users:'.md5(implode(',', $userIds->toArray())),
             300, // 5 minutes cache
             function () use ($userIds) {
                 return User::whereIn('id', $userIds)
@@ -47,6 +50,31 @@ class PostTransformer
                     ->keyBy('id');
             }
         );
+
+        // Batch DataLoader: Compute follower and following counts for author users
+        $authorUserIds = $userIds->filter()->values()->all();
+        $followerCounts = collect([]);
+        $followingCounts = collect([]);
+        $authFollowingIds = [];
+
+        if (! empty($authorUserIds)) {
+            $followerCounts = Follow::whereIn('following_id', $authorUserIds)
+                ->groupBy('following_id')
+                ->selectRaw('following_id, count(*) as count')
+                ->pluck('count', 'following_id');
+
+            $followingCounts = Follow::whereIn('follower_id', $authorUserIds)
+                ->groupBy('follower_id')
+                ->selectRaw('follower_id, count(*) as count')
+                ->pluck('count', 'follower_id');
+
+            if ($currentUserId) {
+                $authFollowingIds = Follow::where('follower_id', $currentUserId)
+                    ->whereIn('following_id', $authorUserIds)
+                    ->pluck('following_id')
+                    ->all();
+            }
+        }
 
         // Retrieve post metadata in batch
         $metadata = PostMetaData::whereIn('post_id', $postIds)
@@ -71,8 +99,17 @@ class PostTransformer
                 ->toArray();
         }
 
+        $savedPostIds = [];
+        if ($currentUserId) {
+            $savedPostIds = SavedPost::whereIn('post_id', $postIds->map(fn ($id) => (string) $id))
+                ->where('user_id', $currentUserId)
+                ->pluck('post_id')
+                ->map(fn ($id) => (string) $id)
+                ->toArray();
+        }
+
         // Transform the posts to include user information
-        $transformedPosts = $postCollection->map(function ($post) use ($users, $metadata, $likedPostIds, $repostedPostIds) {
+        $transformedPosts = $postCollection->map(function ($post) use ($users, $metadata, $likedPostIds, $repostedPostIds, $savedPostIds, $followerCounts, $followingCounts, $authFollowingIds) {
             // Get user from cached collection
             $user = $users->get($post->user_id);
 
@@ -91,6 +128,7 @@ class PostTransformer
                 'reposts' => $postMetadata ? $postMetadata->reposts_count : 0,
                 'is_liked' => in_array((string) $post->id, $likedPostIds, true),
                 'is_reposted' => in_array((string) $post->id, $repostedPostIds, true),
+                'is_saved' => in_array((string) $post->id, $savedPostIds, true),
                 'interactions' => [
                     'likes' => $postMetadata ? $postMetadata->likes_count : 0,
                     'comments' => $postMetadata ? $postMetadata->comments_count : 0,
@@ -103,19 +141,26 @@ class PostTransformer
                     'username' => $user->username,
                     'avatar' => $user->avatar,
                     'bio' => $user->bio,
+                    'followers_count' => (int) ($followerCounts->get($user->id) ?? 0),
+                    'following_count' => (int) ($followingCounts->get($user->id) ?? 0),
+                    'is_following' => in_array($user->id, $authFollowingIds, true),
                 ] : [
                     'id' => null,
                     'name' => 'Deleted User',
                     'username' => 'deleted',
                     'avatar' => null,
                     'bio' => null,
-                ]
+                    'followers_count' => 0,
+                    'following_count' => 0,
+                    'is_following' => false,
+                ],
             ];
         });
 
         // If it was a paginator, set the transformed collection back
         if ($posts instanceof LengthAwarePaginator) {
             $posts->setCollection($transformedPosts);
+
             return $posts;
         }
 
@@ -125,16 +170,17 @@ class PostTransformer
     /**
      * Transform a single post
      *
-     * @param \App\Models\Post $post
+     * @param  Post  $post
      * @return array
      */
     public function transformPost($post)
     {
-        if (!$post) {
+        if (! $post) {
             return null;
         }
 
         $transformed = $this->transformPosts(collect([$post]));
+
         return $transformed->first();
     }
 }

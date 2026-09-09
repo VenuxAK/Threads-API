@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
@@ -153,7 +154,7 @@ class WafTest extends TestCase
         Config::set('waf.file_upload.max_size', 10); // 10KB
 
         // Create a fake PHP file
-        $file = \Illuminate\Http\UploadedFile::fake()->create('test.php', 5); // 5KB
+        $file = UploadedFile::fake()->create('test.php', 5); // 5KB
 
         // Test with POST request that includes file upload (use multipart form data)
         $response = $this->call('POST', '/api/v1/waf-test', [], [], [

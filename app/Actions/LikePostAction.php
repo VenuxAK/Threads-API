@@ -6,14 +6,13 @@ use App\DTOs\InteractionResult;
 use App\Models\Post;
 use App\Models\PostLike;
 use App\Models\PostMetaData;
-use Illuminate\Support\Facades\Log;
 
 class LikePostAction
 {
     public function execute(string $postId, int $userId): InteractionResult
     {
         $post = Post::find($postId);
-        if (!$post) {
+        if (! $post) {
             throw new \RuntimeException('Post not found', 404);
         }
 
@@ -28,6 +27,7 @@ class LikePostAction
                 ->decrement('likes_count');
 
             $count = PostMetaData::where('post_id', $postId)->value('likes_count') ?? 0;
+
             return new InteractionResult($count, false);
         }
 
@@ -39,13 +39,23 @@ class LikePostAction
         );
         $postMeta->increment('likes_count');
 
+        // Dispatch in-app notification to the post author
+        if ($post->user_id) {
+            app(CreateNotificationAction::class)->execute(
+                userId: (int) $post->user_id,
+                senderId: $userId,
+                type: 'like',
+                entityId: $postId
+            );
+        }
+
         return new InteractionResult($postMeta->likes_count, true);
     }
 
     public function unlike(string $postId, int $userId): InteractionResult
     {
         $post = Post::find($postId);
-        if (!$post) {
+        if (! $post) {
             throw new \RuntimeException('Post not found', 404);
         }
 
@@ -53,7 +63,7 @@ class LikePostAction
             ->where('user_id', $userId)
             ->first();
 
-        if (!$existingLike) {
+        if (! $existingLike) {
             throw new \RuntimeException('You have not liked this post', 400);
         }
 
@@ -63,6 +73,7 @@ class LikePostAction
             ->decrement('likes_count');
 
         $count = PostMetaData::where('post_id', $postId)->value('likes_count') ?? 0;
+
         return new InteractionResult($count, false);
     }
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
@@ -116,22 +117,22 @@ class WafEdgeCasesTest extends TestCase
         Config::set('waf.file_upload.enabled', true);
 
         // Test with double extension
-        $file = \Illuminate\Http\UploadedFile::fake()->create('test.php.jpg', 5);
+        $file = UploadedFile::fake()->create('test.php.jpg', 5);
         $response = $this->call('POST', '/api/v1/waf-test', [], [], ['file' => $file]);
         $response->assertStatus(403);
 
         // Test with null byte in filename
-        $file = \Illuminate\Http\UploadedFile::fake()->create('test.php%00.jpg', 5);
+        $file = UploadedFile::fake()->create('test.php%00.jpg', 5);
         $response = $this->call('POST', '/api/v1/waf-test', [], [], ['file' => $file]);
         $response->assertStatus(403);
 
         // Test with case variation
-        $file = \Illuminate\Http\UploadedFile::fake()->create('test.PHP', 5);
+        $file = UploadedFile::fake()->create('test.PHP', 5);
         $response = $this->call('POST', '/api/v1/waf-test', [], [], ['file' => $file]);
         $response->assertStatus(403);
 
         // Test with space before extension
-        $file = \Illuminate\Http\UploadedFile::fake()->create('test .php', 5);
+        $file = UploadedFile::fake()->create('test .php', 5);
         $response = $this->call('POST', '/api/v1/waf-test', [], [], ['file' => $file]);
         $response->assertStatus(403);
     }
@@ -417,22 +418,27 @@ class WafEdgeCasesTest extends TestCase
     }
 
     /**
-     * Test WAF with recursive data structures.
+     * Test WAF with recursive / deeply nested data structures.
      */
     public function test_waf_with_recursive_data_structures(): void
     {
         Config::set('waf.mode', 'protect');
         Config::set('waf.sql_injection.enabled', true);
 
-        // Create recursive array (will be JSON encoded)
-        $data = ['key' => 'value'];
-        $data['self'] = &$data;
+        // Create deeply nested data structure (avoid circular references that break PHP/Laravel test harnesses)
+        $data = ['level' => 0];
+        $current = &$data;
+        for ($i = 1; $i <= 10; $i++) {
+            $current['nested'] = ['level' => $i, 'safe_val' => "node_{$i}"];
+            $current = &$current['nested'];
+        }
+        unset($current);
 
         $response = $this->postJson('/api/v1/waf-test', [
             'test_data' => $data,
         ]);
 
-        // Should handle recursion without crashing
+        // Should handle deep nesting without crashing
         $response->assertStatus(200);
     }
 

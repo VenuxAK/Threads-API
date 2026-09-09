@@ -2,10 +2,11 @@
 
 namespace Database\Factories;
 
+use App\Models\Post;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Post>
+ * @extends Factory<Post>
  */
 class PostFactory extends Factory
 {
@@ -22,16 +23,16 @@ class PostFactory extends Factory
         $content = fake()->paragraph();
 
         foreach ($tags as $tag) {
-            $words = explode(" ", $content);
+            $words = explode(' ', $content);
             $randomPosition = rand(0, count($words) - 1);
             array_splice($words, $randomPosition, 0, "#$tag");
             $content = implode(' ', $words);
         }
 
         return [
-            "content" => $content,
-            "tags" => $tags,
-            "user_id" => fake()->numberBetween(1, 10)
+            'content' => $content,
+            'tags' => $tags,
+            'user_id' => fake()->numberBetween(1, 10),
         ];
     }
 }

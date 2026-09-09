@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Post;
 use App\Models\PostMetaData;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class PostMetaDataSeeder extends Seeder
@@ -18,8 +17,8 @@ class PostMetaDataSeeder extends Seeder
 
         $posts->each(function ($post) {
             PostMetaData::create([
-                "post_id" => $post->id,
-                "user_id" => $post->user_id,
+                'post_id' => $post->id,
+                'user_id' => $post->user_id,
             ]);
         });
     }

@@ -29,7 +29,7 @@ return [
         'Content-Type',
         'X-Requested-With',
         'X-CSRF-Token',
-        'X-XSRF-TOKEN'
+        'X-XSRF-TOKEN',
     ],
 
     'exposed_headers' => [],

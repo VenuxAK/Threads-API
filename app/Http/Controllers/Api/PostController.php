@@ -9,6 +9,7 @@ use App\Services\PostService;
 use App\Transformers\PostTransformer;
 use App\Utils\Http;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -28,7 +29,7 @@ class PostController extends Controller
 
         $posts = $this->postService->getFeed($perPage, $page);
         $transformed = $this->postTransformer->transformPosts($posts);
-        $postsArray = $transformed instanceof \Illuminate\Pagination\LengthAwarePaginator
+        $postsArray = $transformed instanceof LengthAwarePaginator
             ? $transformed->getCollection()->values()
             : $transformed;
         $postsArray = $postsArray->filter(fn ($p) => ! empty($p['content']) && trim((string) $p['content']) !== '' && ($p['author']['username'] ?? '') !== 'deleted')->values();
@@ -53,7 +54,7 @@ class PostController extends Controller
 
         $posts = $this->postService->getAuthUserPosts(Auth::id(), $perPage, $page);
         $transformed = $this->postTransformer->transformPosts($posts);
-        $postsArray = $transformed instanceof \Illuminate\Pagination\LengthAwarePaginator
+        $postsArray = $transformed instanceof LengthAwarePaginator
             ? $transformed->getCollection()->values()
             : $transformed;
         $postsArray = $postsArray->filter(fn ($p) => ! empty($p['content']) && trim((string) $p['content']) !== '' && ($p['author']['username'] ?? '') !== 'deleted')->values();
@@ -74,7 +75,7 @@ class PostController extends Controller
     public function myPost(string $id)
     {
         $post = Post::where('user_id', Auth::id())->where('id', $id)->first();
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found', 404);
         }
 
@@ -104,7 +105,7 @@ class PostController extends Controller
     public function show(string $id)
     {
         $post = $this->postService->getPost($id);
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found', 404);
         }
 
@@ -116,7 +117,7 @@ class PostController extends Controller
     public function update(Request $request, string $id)
     {
         $post = Post::find($id);
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found', 404);
         }
 
@@ -128,7 +129,7 @@ class PostController extends Controller
         $content = $request->content ?? $post->content;
 
         $updated = $this->postService->updatePost($id, $content, Auth::id());
-        if (!$updated) {
+        if (! $updated) {
             return $this->error('Post not found', 404);
         }
 
@@ -138,7 +139,7 @@ class PostController extends Controller
     public function destroy(Request $request, string $id)
     {
         $post = Post::find($id);
-        if (!$post) {
+        if (! $post) {
             return $this->error('Post not found', 404);
         }
 
@@ -148,6 +149,7 @@ class PostController extends Controller
 
         try {
             $this->postService->deletePost($id, Auth::id());
+
             return $this->responseStatus(204);
         } catch (\Exception $e) {
             Log::error('Failed to delete post', [

@@ -62,7 +62,7 @@ class PostService
         $tags = $this->filterHashTags($content);
 
         $post = Post::where('user_id', $userId)->where('id', $id)->first();
-        if (!$post) {
+        if (! $post) {
             return null;
         }
 
@@ -77,7 +77,7 @@ class PostService
     public function deletePost(string $id, int $userId): bool
     {
         $post = Post::where('user_id', $userId)->where('id', $id)->first();
-        if (!$post) {
+        if (! $post) {
             return false;
         }
 

@@ -5,10 +5,13 @@ namespace App\Services;
 use App\Actions\CreateCommentAction;
 use App\DTOs\CommentData;
 use App\Models\Comment;
+use App\Models\Post;
 use App\Models\PostMetaData;
 use App\Models\User;
 use App\Transformers\CommentTransformer;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
+use MongoDB\BSON\ObjectId;
 
 class CommentService
 {
@@ -19,8 +22,8 @@ class CommentService
 
     public function getComments(string $postId): array
     {
-        $post = \App\Models\Post::find($postId);
-        if (!$post) {
+        $post = Post::find($postId);
+        if (! $post) {
             throw new \RuntimeException('Post not found', 404);
         }
 
@@ -54,7 +57,7 @@ class CommentService
     public function getComment(string $id): ?array
     {
         $comment = Comment::find($id);
-        if (!$comment) {
+        if (! $comment) {
             return null;
         }
 
@@ -66,7 +69,7 @@ class CommentService
     public function deleteComment(string $id): bool
     {
         $comment = Comment::find($id);
-        if (!$comment) {
+        if (! $comment) {
             return false;
         }
 
@@ -91,7 +94,7 @@ class CommentService
     public function getReplies(string $id): array
     {
         $comment = Comment::find($id);
-        if (!$comment) {
+        if (! $comment) {
             throw new \RuntimeException('Comment not found', 404);
         }
 
@@ -110,13 +113,13 @@ class CommentService
     public function getThread(string $id): array
     {
         $root = Comment::find($id);
-        if (!$root) {
+        if (! $root) {
             throw new \RuntimeException('Comment not found', 404);
         }
 
         $results = Comment::raw(function ($collection) use ($id) {
             return $collection->aggregate([
-                ['$match' => ['_id' => new \MongoDB\BSON\ObjectId($id)]],
+                ['$match' => ['_id' => new ObjectId($id)]],
                 ['$graphLookup' => [
                     'from' => 'comments',
                     'connectFromField' => '_id',
@@ -157,7 +160,7 @@ class CommentService
                 $parent = $parentMap->get($parentId);
                 if ($parent) {
                     $replyingTo = [
-                        'username' => 'user_' . substr((string) $parent['user_id'], 0, 8),
+                        'username' => 'user_'.substr((string) $parent['user_id'], 0, 8),
                     ];
                 }
             }
@@ -170,7 +173,7 @@ class CommentService
                 'content' => $doc['content'],
                 'post_id' => (string) $doc['post_id'],
                 'parent_id' => $parentId,
-                'created_at' => \Illuminate\Support\Carbon::parse($doc['created_at'])->diffForHumans(),
+                'created_at' => Carbon::parse($doc['created_at'])->diffForHumans(),
                 'reply_count' => 0,
                 'replying_to' => $replyingTo,
                 'author' => $user ? [
@@ -181,7 +184,7 @@ class CommentService
                 ] : [
                     'id' => $userId,
                     'name' => 'User',
-                    'username' => 'user_' . substr($userId, 0, 8),
+                    'username' => 'user_'.substr($userId, 0, 8),
                     'avatar' => null,
                 ],
             ];

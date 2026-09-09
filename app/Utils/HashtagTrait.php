@@ -6,16 +6,13 @@ trait HashtagTrait
 {
     /**
      * Filter hash tags from content
-     *
-     * @param string $content
-     * @return array
      */
     protected function filterHashTags(string $content): array
     {
         $matches = [];
         preg_match_all('/#(\w+)\b/', $content, $matches);
 
-        if (!isset($matches[1])) {
+        if (! isset($matches[1])) {
             return [];
         }
 
@@ -34,9 +31,6 @@ trait HashtagTrait
 
     /**
      * Validate a hashtag
-     *
-     * @param string $tag
-     * @return bool
      */
     protected function isValidHashtag(string $tag): bool
     {
@@ -51,7 +45,7 @@ trait HashtagTrait
         }
 
         // Hashtag should only contain alphanumeric characters and underscores
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $tag)) {
+        if (! preg_match('/^[a-zA-Z0-9_]+$/', $tag)) {
             return false;
         }
 

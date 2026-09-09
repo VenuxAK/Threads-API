@@ -14,7 +14,7 @@ class WafServiceProvider extends ServiceProvider
     {
         // Merge WAF configuration
         $this->mergeConfigFrom(
-            __DIR__ . '/../../config/waf.php',
+            __DIR__.'/../../config/waf.php',
             'waf'
         );
 
@@ -31,20 +31,19 @@ class WafServiceProvider extends ServiceProvider
     {
         // Publish configuration file
         $this->publishes([
-            __DIR__ . '/../../config/waf.php' => config_path('waf.php'),
-            __DIR__ . '/../../config/waf.env.example' => base_path('waf.env.example'),
+            __DIR__.'/../../config/waf.php' => config_path('waf.php'),
+            __DIR__.'/../../config/waf.env.example' => base_path('waf.env.example'),
         ], 'waf-config');
 
         // Publish middleware
         $this->publishes([
-            __DIR__ . '/../Http/Middleware/WebApplicationFirewall.php'
-            => app_path('Http/Middleware/WebApplicationFirewall.php'),
+            __DIR__.'/../Http/Middleware/WebApplicationFirewall.php' => app_path('Http/Middleware/WebApplicationFirewall.php'),
         ], 'waf-middleware');
 
         // Ensure WAF log directory exists
         $logPath = storage_path('logs');
 
-        if (!is_dir($logPath)) {
+        if (! is_dir($logPath)) {
             mkdir($logPath, 0755, true);
         }
     }

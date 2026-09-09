@@ -78,7 +78,7 @@ class UserService
     public function getUserWithPosts(string $username, int $perPage, int $page): array
     {
         $user = User::where('username', $username)->first();
-        if (!$user) {
+        if (! $user) {
             throw new \RuntimeException('User not found', 404);
         }
 

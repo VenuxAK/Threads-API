@@ -26,7 +26,7 @@ class CommentTransformer
             ] : [
                 'id' => $comment->user_id,
                 'name' => 'User',
-                'username' => 'user_' . substr((string) $comment->user_id, 0, 8),
+                'username' => 'user_'.substr((string) $comment->user_id, 0, 8),
                 'avatar' => null,
             ],
         ];
@@ -36,6 +36,7 @@ class CommentTransformer
     {
         return $comments->map(function ($comment) use ($users) {
             $user = $users->get($comment->user_id);
+
             return $this->transform($comment, $user);
         })->all();
     }
@@ -54,7 +55,7 @@ class CommentTransformer
                 $parent = $parents->get($parentKey);
                 if ($parent) {
                     $replyingTo = [
-                        'username' => 'user_' . substr((string) $parent->user_id, 0, 8),
+                        'username' => 'user_'.substr((string) $parent->user_id, 0, 8),
                     ];
                 }
             }
