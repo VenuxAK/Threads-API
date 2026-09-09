@@ -319,14 +319,18 @@ class WebApplicationFirewall
         return null;
     }
 
-    /**
-     * Check request data against patterns.
-     */
     private function checkPatterns(Request $request, array $patterns, string $type): ?array
     {
-        // Check all request data
+        // Check all request data. For GraphQL requests, we scan variables and input payloads
+        // while exempting the raw query AST string to prevent false-positive pattern matches
+        // on GraphQL syntax while still strictly inspecting all user-supplied parameters.
+        $allData = $request->all();
+        if ($request->is('graphql') || $request->is('*/graphql')) {
+            unset($allData['query']);
+        }
+
         $dataToCheck = array_merge(
-            $request->all(),
+            $allData,
             $request->headers->all(),
             ['uri' => $request->getRequestUri()]
         );

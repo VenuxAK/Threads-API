@@ -1,0 +1,217 @@
+"A datetime string with format `Y-m-d H:i:s`, e.g. `2024-05-23 13:43:32`."
+scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+
+"""
+Top-level GraphQL Query entry point for ThreadsApp.
+Provides queries for users, feeds, post interactions, hierarchical comment threads, and search.
+All sensitive data queries are protected by the @guard directive.
+"""
+type Query {
+    "Retrieve the currently authenticated user's profile and settings."
+    me: User @guard @field(resolver: "App\\GraphQL\\Queries\\MeQuery")
+
+    "Look up any public user by their unique username."
+    user(username: String!): User @guard @field(resolver: "App\\GraphQL\\Queries\\UserQuery")
+
+    "Fetch the paginated home feed containing posts from all users."
+    feed(
+        page: Int = 1
+        perPage: Int = 15
+    ): PostPaginator! @guard @field(resolver: "App\\GraphQL\\Queries\\FeedQuery")
+
+    "Retrieve a single post by its unique identifier."
+    post(id: ID!): Post @guard @field(resolver: "App\\GraphQL\\Queries\\PostQuery")
+
+    "Retrieve posts published by the authenticated user."
+    myPosts(
+        page: Int = 1
+        perPage: Int = 15
+    ): PostPaginator! @guard @field(resolver: "App\\GraphQL\\Queries\\MyPostsQuery")
+
+    "Retrieve posts reposted by the authenticated user."
+    myReposts(
+        page: Int = 1
+        perPage: Int = 15
+    ): PostPaginator! @guard @field(resolver: "App\\GraphQL\\Queries\\MyRepostsQuery")
+
+    "Retrieve posts published by a specific user."
+    userPosts(
+        username: String!
+        page: Int = 1
+        perPage: Int = 15
+    ): PostPaginator! @guard @field(resolver: "App\\GraphQL\\Queries\\UserPostsQuery")
+
+    "Retrieve posts reposted by a specific user."
+    userReposts(
+        username: String!
+        page: Int = 1
+        perPage: Int = 15
+    ): PostPaginator! @guard @field(resolver: "App\\GraphQL\\Queries\\UserRepostsQuery")
+
+    "Retrieve all posts liked by the authenticated user."
+    myLikedPosts(
+        page: Int = 1
+        perPage: Int = 15
+    ): PostPaginator! @guard @field(resolver: "App\\GraphQL\\Queries\\MyLikedPostsQuery")
+
+    "Retrieve root-level comments for a given post."
+    postComments(postId: ID!): [Comment!]! @guard @field(resolver: "App\\GraphQL\\Queries\\PostCommentsQuery")
+
+    "Retrieve a flat, chronological comment thread using MongoDB graph lookup."
+    commentThread(id: ID!): [Comment!]! @guard @field(resolver: "App\\GraphQL\\Queries\\CommentThreadQuery")
+
+    "Retrieve direct replies to a specific comment."
+    commentReplies(id: ID!): [Comment!]! @guard @field(resolver: "App\\GraphQL\\Queries\\CommentRepliesQuery")
+
+    "Search users and posts by keyword or hashtag."
+    search(
+        keyword: String!
+        includePosts: Boolean = false
+        page: Int = 1
+        perPage: Int = 20
+    ): SearchResult! @guard @field(resolver: "App\\GraphQL\\Queries\\SearchQuery")
+}
+
+"""
+Top-level GraphQL Mutation entry point for ThreadsApp.
+Handles post authoring, interaction state changes (likes, reposts), comments, and profile edits.
+All mutations require an authenticated session via @guard.
+"""
+type Mutation {
+    "Create and publish a new post with automatic hashtag extraction."
+    createPost(content: String!): Post! @guard @field(resolver: "App\\GraphQL\\Mutations\\PostMutation@create")
+
+    "Update the text content of an existing post owned by the authenticated user."
+    updatePost(id: ID!, content: String!): Post! @guard @field(resolver: "App\\GraphQL\\Mutations\\PostMutation@update")
+
+    "Delete a post owned by the authenticated user along with its metadata."
+    deletePost(id: ID!): Boolean! @guard @field(resolver: "App\\GraphQL\\Mutations\\PostMutation@delete")
+
+    "Like a post or toggle like status for the authenticated user."
+    likePost(postId: ID!): InteractionResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\InteractionMutation@like")
+
+    "Explicitly unlike a post previously liked by the authenticated user."
+    unlikePost(postId: ID!): InteractionResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\InteractionMutation@unlike")
+
+    "Toggle repost status for a given post by the authenticated user."
+    repost(postId: ID!): InteractionResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\InteractionMutation@repost")
+
+    "Create a new comment on a post, or a nested reply to another comment."
+    createComment(
+        postId: ID!
+        content: String!
+        parentId: ID
+    ): Comment! @guard @field(resolver: "App\\GraphQL\\Mutations\\CommentMutation@create")
+
+    "Delete a comment owned by the authenticated user and decrement post comment count."
+    deleteComment(id: ID!): Boolean! @guard @field(resolver: "App\\GraphQL\\Mutations\\CommentMutation@delete")
+
+    "Update the authenticated user's profile information."
+    updateProfile(
+        name: String
+        bio: String
+        avatar: String
+    ): User! @guard @field(resolver: "App\\GraphQL\\Mutations\\ProfileMutation@update")
+}
+
+"""
+Represents a user account in MySQL.
+Includes public profile information as well as private fields (like email) for the owner.
+"""
+type User {
+    id: ID!
+    name: String!
+    username: String!
+    email: String
+    avatar: String
+    bio: String
+    created_at: String
+}
+
+"""
+Represents a post document stored in MongoDB.
+Metadata (like counters, author identity, and interaction flags) are hydrated via batch loaders.
+"""
+type Post {
+    id: ID!
+    content: String!
+    tags: [String!]!
+    published_at: String!
+    edited_at: String
+    likes: Int!
+    comments: Int!
+    reposts: Int!
+    is_liked: Boolean!
+    is_reposted: Boolean!
+    interactions: InteractionStats!
+    author: User!
+}
+
+"""
+Aggregated interaction counters for a post stored in MySQL post_meta_data.
+"""
+type InteractionStats {
+    likes: Int!
+    comments: Int!
+    shares: Int!
+    reposts: Int!
+}
+
+"""
+Result of a like, unlike, or repost interaction mutation.
+Returns the updated total counter and the boolean status for the active user.
+"""
+type InteractionResult {
+    count: Int!
+    status: Boolean!
+}
+
+"""
+Represents a comment or reply document stored in MongoDB.
+Supports hierarchical nesting through optional parentId and replying_to metadata.
+"""
+type Comment {
+    id: ID!
+    content: String!
+    post_id: ID!
+    parent_id: ID
+    created_at: String!
+    reply_count: Int!
+    replying_to: ReplyingToInfo
+    author: User!
+}
+
+"""
+Information regarding the target parent author when replying in a comment thread.
+"""
+type ReplyingToInfo {
+    username: String!
+}
+
+"""
+Standardized pagination metadata returned alongside list queries.
+"""
+type PaginationInfo {
+    total: Int!
+    per_page: Int!
+    current_page: Int!
+    last_page: Int!
+    has_more: Boolean!
+}
+
+"""
+Paginated response wrapper for collections of posts.
+"""
+type PostPaginator {
+    data: [Post!]!
+    pagination: PaginationInfo!
+}
+
+"""
+Compound search result containing matching users from MySQL and posts from MongoDB.
+"""
+type SearchResult {
+    users: [User!]!
+    posts: [Post!]
+    query: String!
+}

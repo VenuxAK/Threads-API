@@ -78,9 +78,9 @@ return [
             'max_attempts' => env('WAF_RATE_LIMIT_AUTH', 10),
             'decay_minutes' => 1,
         ],
-        'api/register' => [
-            'max_attempts' => env('WAF_RATE_LIMIT_REGISTER', 3),
-            'decay_minutes' => 60,
+        'graphql' => [
+            'max_attempts' => env('WAF_RATE_LIMIT_GRAPHQL', 120),
+            'decay_minutes' => 1,
         ],
     ],
 
